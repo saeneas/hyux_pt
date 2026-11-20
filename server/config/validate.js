@@ -1,7 +1,7 @@
 // Validates config.js and the task data at startup. Collects every problem and reports them together
 // in plain language, so a researcher can fix the config without reading code.
 
-const SCREENS = ['welcome', 'systemCheck', 'tutorial', 'briefing', 'task', 'survey', 'interview', 'end'];
+const SCREENS = ['welcome', 'systemCheck', 'tutorial', 'briefing', 'deliberate', 'task', 'survey', 'profile', 'interview', 'end'];
 const OPTIONAL_SCREENS = ['tutorial', 'survey', 'interview'];
 
 export function validateConfig(config, { tasks, modes, hasApiKey, devMode }) {
@@ -94,6 +94,20 @@ export function validateConfig(config, { tasks, modes, hasApiKey, devMode }) {
   str('ai.compare.initialPrompt'); str('ai.compare.nextPrompt');
   bool('ai.compare.includeSituation');
   num('ai.compare.maxOutputTokens', { min: 256, max: 32000, int: true });
+
+  // personal
+  str('personal.deliberation.condition');
+  num('personal.deliberation.seconds', { min: 30, max: 900, int: true });
+  num('personal.deliberation.minSeconds', { min: 0, max: 900, int: true });
+  num('personal.secondsPerComparison', { min: 15, max: 300, int: true });
+  num('personal.timeoutSeconds', { min: 10, max: 600 });
+  for (const call of ['adaptive', 'planner', 'step', 'evidence', 'profile']) {
+    str(`personal.calls.${call}.model`);
+    if (get(`personal.calls.${call}.reasoningEffort`) !== null) oneOf(`personal.calls.${call}.reasoningEffort`, ['none', 'low', 'medium', 'high', 'xhigh', 'max']);
+    num(`personal.calls.${call}.maxOutputTokens`, { min: 64, max: 64000, int: true });
+  }
+  const picks = get('participants.pickList');
+  if (!Array.isArray(picks) || picks.some((x) => typeof x !== 'string' || !x.trim())) err('participants.pickList', 'must be a list of names (or empty)');
 
   // stt
   str('stt.model');

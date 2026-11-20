@@ -15,8 +15,12 @@ export default function create() {
       const task = ctx.session.task(round);
       const timer = ctx.config.timer;
 
+      // When the deliberation follows, confirming starts the thinking time; the task timer starts with the
+      // comparisons (screens/task.js).
+      const thinkingNext = ctx.flow.steps[ctx.step.index + 1]?.screen === 'deliberate';
+      const startKey = thinkingNext ? 'briefedAt' : 'taskStartedAt';
       // Already confirmed (e.g. dev jump back): go straight on.
-      if (ctx.session.progress(round).taskStartedAt) return ctx.flow.next();
+      if (ctx.session.progress(round)[startKey]) return ctx.flow.next();
 
       const mode = await ctx.getMode();
       canvas = mode.createCanvas(ctx, { round, task, live: false, conceal: true });
@@ -29,8 +33,8 @@ export default function create() {
       }[timer.mode];
 
       const start = async () => {
-        await ctx.session.updateProgress(round, { taskId: task.id, taskStartedAt: Date.now() }, { immediate: true });
-        logEvent('task.started', { title: task.title, timeLimitMinutes: task.timeLimitMinutes, timerMode: timer.mode, mode: mode.name });
+        await ctx.session.updateProgress(round, { taskId: task.id, [startKey]: Date.now() }, { immediate: true });
+        logEvent(thinkingNext ? 'task.briefed' : 'task.started', { title: task.title, timeLimitMinutes: task.timeLimitMinutes, timerMode: timer.mode, mode: mode.name });
         dialog.close();
         dialog = null;
         ctx.flow.next();
@@ -47,7 +51,7 @@ export default function create() {
           h('div.app-briefing__block', h('div.fh-attr__label', t('canvas.taskLabel')), h('p.app-text.app-briefing__text.vc-task__text--strong', task.task)),
           h('div.app-briefing__limit',
             h('span.fh-attr__label', t('briefing.timeLimit')),
-            h('span.fh-attr__value.fh-attr__value--large', t('briefing.minutes', { minutes: task.timeLimitMinutes }))),
+            h('span.fh-attr__value.fh-attr__value--large', t('briefing.minutes', { minutes: task.timeLimitMinutes + (thinkingNext ? Math.round((ctx.config.personal?.deliberation?.seconds ?? 0) / 60) : 0) }))),
           h('p.app-text', timerText),
           h('p.app-hint', t('briefing.timerStarts'))),
         actions: [{ label: t('briefing.start'), emphasized: true, onClick: start }],

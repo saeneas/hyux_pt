@@ -50,9 +50,10 @@ export function createOpenAiService({ config, env }) {
     return client;
   };
 
-  function requestParams(input, { stream, maxOutputTokens = config.ai.maxOutputTokens, instructions = config.ai.systemPrompt } = {}) {
+  // model and reasoningEffort: per call (the personalize calls choose their own), else config.ai.
+  function requestParams(input, { stream, maxOutputTokens = config.ai.maxOutputTokens, instructions = config.ai.systemPrompt, model = config.ai.model, reasoningEffort = config.ai.reasoningEffort } = {}) {
     const p = {
-      model: config.ai.model,
+      model,
       instructions,
       input,
       max_output_tokens: maxOutputTokens,
@@ -60,7 +61,7 @@ export function createOpenAiService({ config, env }) {
       stream,
     };
     if (config.ai.temperature !== null) p.temperature = config.ai.temperature;
-    if (config.ai.reasoningEffort !== null) p.reasoning = { effort: config.ai.reasoningEffort };
+    if (reasoningEffort) p.reasoning = { effort: reasoningEffort };
     return p;
   }
 
@@ -93,14 +94,14 @@ export function createOpenAiService({ config, env }) {
     // Short calls the participant waits for (intents). Usually 2–3 s, but now and then one request takes
     // much longer at the API. So if no answer has come after ai.intents.hedgeAfterSeconds, a second,
     // identical request starts; the first answer wins and the other request is cancelled.
-    async structured({ instructions, input, schema, signal, maxOutputTokens = config.ai.intents.maxOutputTokens, hedgeAfterSeconds = config.ai.intents.hedgeAfterSeconds }) {
-      const params = requestParams(input, { stream: false, maxOutputTokens, instructions });
+    async structured({ instructions, input, schema, signal, maxOutputTokens = config.ai.intents.maxOutputTokens, hedgeAfterSeconds = config.ai.intents.hedgeAfterSeconds, model, reasoningEffort }) {
+      const params = requestParams(input, { stream: false, maxOutputTokens, instructions, model, reasoningEffort });
       params.text = { format: { type: 'json_schema', name: 'result', schema, strict: true } };
       const once = async (sig) => {
         const res = await need().responses.create(params, { signal: sig });
         let data;
         try { data = JSON.parse(res.output_text ?? ''); } catch { throw new Error('The model did not return valid JSON'); }
-        return { data, usage: res.usage ?? null };
+        return { data, usage: res.usage ?? null, model: params.model };
       };
       const after = (hedgeAfterSeconds ?? 0) * 1000;
       return after > 0 ? hedged(once, { signal, after }) : once(signal);

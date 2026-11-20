@@ -6,7 +6,7 @@
     "task": "Write a compelling renewal proposal to the CFO arguing why the hospital network should renew. Make the case for how the platform supports staff wellbeing, improves scheduling efficiency, helps retain nurses and, in the end, contributes to better patient care.",
     "scaffold": "Dear [CFO Name],\n\nThank you for your message about the network’s review of software contracts. This letter sets out our proposal for renewing your workforce scheduling platform agreement.\n\nYour current agreement covers 1,200 licences. We propose renewing the same 1,200 licences for 12-month. The renewal includes platform access, standard support, software updates and hosting.\n\nWe are happy to provide any further information your review needs, including usage reports. Please let us know a convenient time to discuss the renewal.\n\nKind regards,",
     "briefing": "",
-    "timeLimitMinutes": 7
+    "timeLimitMinutes": 8
   },
   {
     "id": "task-02",
@@ -15,7 +15,7 @@
     "task": "Write a compelling renewal proposal to the CFO arguing why the hospital network should renew. Make the case for how the platform supports staff wellbeing, improves scheduling efficiency, helps retain nurses and, in the end, contributes to better patient care.",
     "scaffold": "Dear [CFO Name],\n\nThank you for your message about the network’s review of software contracts. This letter sets out our proposal for renewing your workforce scheduling platform agreement.\n\nYour current agreement covers 1,200 licences. We propose renewing the same 1,200 licences for 12-month. The renewal includes platform access, standard support, software updates and hosting.\n\nWe are happy to provide any further information your review needs, including usage reports. Please let us know a convenient time to discuss the renewal.\n\nKind regards,",
     "briefing": "",
-    "timeLimitMinutes": 7
+    "timeLimitMinutes": 8
   },
   {
     "id": "task-03",
@@ -24,6 +24,6 @@
     "task": "Write a compelling renewal proposal to the CFO arguing why the hospital network should renew. Make the case for how the platform supports staff wellbeing, improves scheduling efficiency, helps retain nurses and, in the end, contributes to better patient care.",
     "scaffold": "Dear [CFO Name],\n\nThank you for your message about the network’s review of software contracts. This letter sets out our proposal for renewing your workforce scheduling platform agreement.\n\nYour current agreement covers 1,200 licences. We propose renewing the same 1,200 licences for 12-month. The renewal includes platform access, standard support, software updates and hosting.\n\nWe are happy to provide any further information your review needs, including usage reports. Please let us know a convenient time to discuss the renewal.\n\nKind regards,",
     "briefing": "",
-    "timeLimitMinutes": 7
+    "timeLimitMinutes": 8
   }
 ]

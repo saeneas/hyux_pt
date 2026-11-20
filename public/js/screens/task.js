@@ -28,15 +28,21 @@ export default function create() {
       if (progress.finishedAt) return ctx.flow.next();
       const mode = await ctx.getMode();
       if (gone) return;
+
+      canvas = mode.createCanvas(ctx, { round, task, live: true });
+      container.append(h('div.app-canvas-host', canvas.el));
+      // A canvas that first prepares its content (personal: the plan and the first pair) starts the task
+      // time only when it is ready (canvas.ready), so the waiting does not count.
+      if (!progress.taskStartedAt && canvas.ready) {
+        await canvas.ready;
+        if (gone) return;
+      }
       if (!progress.taskStartedAt) {
         // No briefing in the flow (or skipped in dev mode): the task starts now.
         ctx.session.updateProgress(round, { taskId: task.id, taskStartedAt: Date.now() }, { immediate: true });
         progress = ctx.session.progress(round);
         logEvent('task.started', { title: task.title, timeLimitMinutes: task.timeLimitMinutes, timerMode: cfg.mode, mode: mode.name, via: 'task' });
       }
-
-      canvas = mode.createCanvas(ctx, { round, task, live: true });
-      container.append(h('div.app-canvas-host', canvas.el));
 
       const notice = (design, key, vars) => clear(canvas.noticeSlot).append(messageStrip(design, t(key, vars)));
 

@@ -13,22 +13,24 @@ export default {
 
   participants: {
     // Valid participant IDs. Never sent to the browser. Matching ignores case and surrounding spaces.
-    validIds: [
-      'P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P07', 'P08', 'P09', 'P10',
-      'P11', 'P12', 'P13', 'P14', 'P15', 'P16', 'P17', 'P18', 'P19', 'P20',
-    ],
+    validIds: ['Marcus', 'Lisa', 'Duchy', 'Aeneas'],
+    // Prototyping: the welcome screen offers these names in a list instead of an ID field (they are then
+    // sent to the browser). Empty: the ID field.
+    pickList: ['Marcus', 'Lisa', 'Duchy', 'Aeneas'],
     // false: an ID can start one session. Entering it again resumes that session until it is
     // completed; after that the ID is rejected. true: every entry starts a new session.
-    allowReuse: false,
+    allowReuse: true,
   },
 
   flow: {
     // Screen order. Screens are modules in public/js/screens/. Reordering here reorders the study.
-    pre: ['welcome', 'systemCheck', 'tutorial'],
-    round: ['briefing', 'task', 'survey', 'interview'],
+    // personalize: read the task (briefing), think it through aloud (deliberate), find the text through
+    // guided comparisons (task), answer the questionnaire (survey), see the inferred profile (profile).
+    pre: ['welcome'],
+    round: ['briefing', 'deliberate', 'task', 'survey', 'profile'],
     post: ['end'],
     // Optional screens. A screen set to false is skipped.
-    enabled: { tutorial: true, survey: true, interview: false },
+    enabled: { tutorial: false, survey: true, interview: false },
     rounds: 3, // N
     taskSelection: {
       mode: 'fixed', // 'fixed' | 'random' | 'perParticipant'
@@ -51,7 +53,8 @@ export default {
     //               one, the first instruction is sent as spoken). Each recording is split into intent
     //               cards that can be switched off or changed by voice; a send hands the AI only the
     //               active intents and the latest draft.
-    mode: 'compare',
+    //   'personal': guided comparisons planned from the deliberation (branch personalize; see scaffold/).
+    mode: 'personal',
     recordingMode: 'pushToTalk', // 'pushToTalk' (hold button or Space) | 'toggle' (click to start, click to stop)
     maxRecordingSeconds: 60,
   },
@@ -150,6 +153,29 @@ export default {
     },
   },
 
+  // personalize: deliberation, planning, guided comparisons and the profile. The logic itself (prompts,
+  // strategy catalog, deliberation conditions) is in scaffold/ and read on every call.
+  personal: {
+    deliberation: {
+      condition: 'adaptive', // default for new sessions: a key of scaffold/deliberation.json (open | static | adaptive)
+      seconds: 180, // time for thinking aloud; at the end the step closes
+      minSeconds: 60, // "I'm Done" is possible after this long
+    },
+    // Time budget of the comparisons: the task's timeLimitMinutes, divided by about this many seconds per
+    // pair, tells the planner and each step how many pairs are left.
+    secondsPerComparison: 50,
+    // Model and reasoning effort per call. Routing calls run on a small model; planning and the profile
+    // on the large one.
+    calls: {
+      adaptive: { model: 'gpt-6.1-terra', reasoningEffort: 'low', maxOutputTokens: 400 },
+      planner: { model: 'gpt-6.2-sol', reasoningEffort: 'medium', maxOutputTokens: 6000 },
+      step: { model: 'gpt-6.2-sol', reasoningEffort: 'low', maxOutputTokens: 5000 },
+      evidence: { model: 'gpt-6.1-terra', reasoningEffort: 'low', maxOutputTokens: 5000 },
+      profile: { model: 'gpt-6.2-sol', reasoningEffort: 'high', maxOutputTokens: 8000 },
+    },
+    timeoutSeconds: 120, // per call; the participant sees progress meanwhile
+  },
+
   stt: {
     model: 'gpt-transcribe',
     languages: ['en'], // gpt-transcribe takes a list of expected languages
@@ -187,7 +213,7 @@ export default {
   // Only used when DEV_MODE=true in .env. Ignored otherwise.
   dev: {
     participantId: 'DEV', // used by "Skip ID"; does not need to be in validIds
-    mockByDefault: true, // dev sessions start with mock speech-to-text and LLM (no API cost)
+    mockByDefault: false, // dev sessions start with mock speech-to-text and LLM (no API cost)
     timerSpeeds: [1, 10, 60],
     mockLatencyMs: 600,
   },

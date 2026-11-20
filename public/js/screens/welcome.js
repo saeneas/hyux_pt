@@ -1,4 +1,5 @@
-// Welcome: short intro and participant ID. The ID is checked on the server only.
+// Welcome: short intro and participant ID. The ID is checked on the server only. For prototyping
+// (participants.pickList in config.js) a list of names replaces the ID field.
 import { h, messageStrip } from '../core/dom.js';
 import { t } from '../core/strings.js';
 import { api } from '../core/api.js';
@@ -9,8 +10,11 @@ export default function create() {
   return {
     mount(container, ctx) {
       const browser = checkBrowser();
-      const input = h('input', { id: 'pid', type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: t('welcome.idPlaceholder'), 'aria-describedby': 'pid-help', maxlength: '64' });
-      const field = h('span.fh-input', input);
+      const names = ctx.config.participants?.pickList ?? [];
+      const input = names.length
+        ? h('select', { id: 'pid', 'aria-describedby': 'pid-help' }, h('option', { value: '' }, t('welcome.namePlaceholder')), names.map((n) => h('option', { value: n }, n)))
+        : h('input', { id: 'pid', type: 'text', autocomplete: 'off', spellcheck: 'false', placeholder: t('welcome.idPlaceholder'), 'aria-describedby': 'pid-help', maxlength: '64' });
+      const field = h(`span.fh-input${names.length ? '.fh-input--select' : ''}`, input);
       const errorBox = h('div.fh-valuestate.fh-valuestate--error', { id: 'pid-error', role: 'alert', hidden: true });
       const submit = h('button.fh-btn.fh-btn--emphasized', { type: 'submit', disabled: !browser.ok }, t('welcome.submit'));
 
@@ -27,7 +31,7 @@ export default function create() {
         input.removeAttribute('aria-invalid');
         input.setAttribute('aria-describedby', 'pid-help');
       };
-      input.addEventListener('input', clearError);
+      input.addEventListener(names.length ? 'change' : 'input', clearError);
 
       const onSubmit = async (e) => {
         e.preventDefault();
@@ -63,10 +67,10 @@ export default function create() {
               h('p.app-text', t('welcome.intro')),
               notices,
               h('label.fh-field', { for: 'pid' },
-                h('span.fh-label.fh-label--required', t('welcome.idLabel')),
+                h('span.fh-label.fh-label--required', t(names.length ? 'welcome.nameLabel' : 'welcome.idLabel')),
                 field),
               errorBox,
-              h('p.app-hint', { id: 'pid-help' }, t('welcome.idHelp')),
+              names.length ? null : h('p.app-hint', { id: 'pid-help' }, t('welcome.idHelp')),
               h('div.app-actions', submit))))),
       );
       if (browser.ok) input.focus();

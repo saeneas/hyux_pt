@@ -7,8 +7,10 @@ const registry = {
   systemCheck: () => import('./systemCheck.js'),
   tutorial: () => import('./tutorial.js'),
   briefing: () => import('./briefing.js'),
+  deliberate: () => import('./deliberate.js'),
   task: () => import('./task.js'),
   survey: () => import('./survey.js'),
+  profile: () => import('./profile.js'),
   interview: () => import('./interview.js'),
   end: () => import('./end.js'),
 };

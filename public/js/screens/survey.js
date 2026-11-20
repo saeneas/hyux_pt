@@ -3,12 +3,16 @@
 import { h, messageStrip } from '../core/dom.js';
 import { t } from '../core/strings.js';
 import { logEvent } from '../core/logEvent.js';
+import { api } from '../core/api.js';
 
 export default function create() {
   return {
     async mount(container, ctx) {
       const { round } = ctx.step;
       const task = ctx.session.task(round);
+      // personalize: the profile is inferred while the questionnaire is answered (it starts at the latest
+      // here; usually already when the final text was chosen).
+      if (ctx.session.data?.mode === 'personal') api.personal.profile(round).catch(() => {});
       const page = (...children) => container.append(h('div.fh-page.app-page', h('div.fh-page__content.app-center', ...children)));
       const done = async () => {
         await ctx.session.updateProgress(round, { surveyAt: new Date().toISOString() }, { immediate: true });
