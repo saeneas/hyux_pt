@@ -10,6 +10,17 @@ export default function create() {
   return {
     async mount(container, ctx) {
       releaseMic();
+      // Test sessions: the session as a file (config.personal.offerExport).
+      function downloadBlock() {
+        const status = h('p.app-hint', { 'aria-live': 'polite' });
+        const b = h('button.fh-btn.fh-btn--emphasized', { type: 'button' }, t('end.download'));
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          try { status.textContent = t('end.downloaded', { name: await api.personal.download() }); logEvent('end.downloaded', {}); } catch { status.textContent = t('end.downloadFailed'); }
+          b.disabled = false;
+        });
+        return h('div.app-sentence', h('div.app-sentence__label', t('end.downloadLabel')), h('p.app-text', t('end.downloadText')), h('div.app-actions', b), status);
+      }
       let code = null;
       try {
         code = (await api.complete()).completionCode;
@@ -26,6 +37,7 @@ export default function create() {
               h('div.app-sentence__label', t('end.codeLabel')),
               h('p.app-sentence__text.app-code', code),
               h('p.app-hint', t('end.codeHint'))) : null,
+            ctx.session.data?.mode === 'personal' && ctx.config.personal?.offerExport ? downloadBlock() : null,
             h('p.app-hint', t('end.close')))))));
     },
     unmount() {},

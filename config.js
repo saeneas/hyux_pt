@@ -174,6 +174,9 @@ export default {
       profile: { model: 'gpt-6.2-sol', reasoningEffort: 'high', maxOutputTokens: 8000 },
     },
     timeoutSeconds: 120, // per call; the participant sees progress meanwhile
+    // The end screen offers the session as a file (what was said and chosen, plans, cards, profiles), for
+    // test sessions with colleagues. scripts/replay.mjs runs such a file again against changed prompts.
+    offerExport: true,
   },
 
   stt: {

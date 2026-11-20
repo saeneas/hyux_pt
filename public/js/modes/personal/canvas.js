@@ -16,6 +16,7 @@ import { api } from '../../core/api.js';
 import { logEvent } from '../../core/logEvent.js';
 import { createTaskSidebar } from '../../core/canvas/taskSidebar.js';
 import { createVoiceInput } from '../../core/canvas/voiceInput.js';
+import { renderMarked } from './marks.js';
 
 const MODE = {
   confirm: { key: 'personal.modeConfirm', icon: 'accept' },
@@ -65,6 +66,10 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
   const message = h('p.ps-message', { 'aria-live': 'polite' });
   const modeTag = h('span.ps-mode');
   const question = h('h2.ps-question');
+  // What the two highlight colours mean.
+  const legend = h('div.ps-legend',
+    h('span.ps-legend__item', h('mark.ps-mark.ps-mark--now', '  '), h('span', t('personal.legendNow'))),
+    h('span.ps-legend__item.ps-legend__item--before', h('mark.ps-mark.ps-mark--before', '  '), h('span', t('personal.legendBefore'))));
   const pairEl = h('div.ps-pair', { dataset: { region: 'output' } });
   const busyEl = h('div.ps-busy', { 'aria-live': 'polite' });
 
@@ -93,7 +98,7 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
     noticeSlot,
     h('div.ps-top', path, meter),
     message,
-    h('div.ps-ask', modeTag, question),
+    h('div.ps-ask', modeTag, question, legend),
     busyEl,
     pairEl,
     noteEl,
@@ -232,6 +237,9 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
     const isNew = pairEl.dataset.n !== String(c.n);
     if (isNew) {
       clear(pairEl);
+      const marked = c.cards.map((card, i) => renderMarked(card, c.cards[1 - i]));
+      legend.hidden = !marked.some((m) => m.hasNow || m.hasBefore);
+      legend.querySelector('.ps-legend__item--before').hidden = !marked.some((m) => m.hasBefore);
       c.cards.forEach((card, i) => {
         const pickBtn = h('button.fh-btn.ps-pick', { type: 'button' }, icon('favorite'), h('span.ps-pick__label'));
         pickBtn.addEventListener('click', () => {
@@ -245,10 +253,17 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
             h('span.ps-card__letter', String.fromCharCode(65 + i)),
             h('div.ps-card__titles', h('h3.ps-card__lens', card.lens), h('p.ps-card__why', card.why)),
             h('span.ps-card__kind', t(card.kind === 'full' ? 'personal.full' : 'personal.excerpt'))),
-          h('div.ps-card__body', { tabindex: '0' }, h('p.ps-card__text', card.text)),
+          h('div.ps-card__body', { tabindex: '0' }, h('p.ps-card__text', marked[i].nodes)),
           h('footer.ps-card__foot', pickBtn));
         el.addEventListener('dblclick', () => pickBtn.click());
         pairEl.append(el);
+      });
+      // A long version opens at the passage the choice is about.
+      requestAnimationFrame(() => {
+        for (const body of pairEl.querySelectorAll('.ps-card__body')) {
+          const mark = body.querySelector('.ps-mark--now');
+          if (mark && mark.offsetTop > body.clientHeight * 0.6) body.scrollTop = Math.max(0, mark.offsetTop - body.clientHeight / 3);
+        }
       });
       pairEl.dataset.n = String(c.n);
     }
@@ -283,6 +298,7 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
     modeTag.hidden = !mode || !ready || accepted;
     question.textContent = ready && !accepted ? c.question : '';
     question.hidden = !ready || accepted || !c.question;
+    if (!ready || accepted) legend.hidden = true;
 
     // The reason.
     const recording = recordingSeconds !== null;

@@ -43,6 +43,12 @@ Each card:
   "full" when it is about the whole email or in the final stage (the whole email, at most 220 words).
 - text: plain text without Markdown. Use only facts from the situation; keep a placeholder in square
   brackets where a fact is missing. Cards of a pair have the same kind and about the same length.
+- focus: the phrases of this card's text where its option shows, the part the writer decides on now
+  (one to three phrases, each copied exactly from text, at most 25 words). They are highlighted in
+  bright blue, so the writer sees at once what the choice is about.
+- carried: the phrases of this card's text that carry what the writer chose before (one to three,
+  copied exactly, at most 25 words; empty in the first pair). They are highlighted in a muted blue, so
+  the writer sees where earlier choices went.
 
 Also write:
 - question: one short question shown above the cards that invites the writer to say why (at most 18

@@ -137,7 +137,7 @@ export function initDevPanel(ctx) {
     h('div.dd-scroll',
       section('Session', sessionInfo, h('div.dd-row', nameSel, condSel), h('div.dd-row', btn('Start new session', newSession, '.dd-btn--primary'))),
       section('Go to step', stepList),
-      section('This task', h('div.dd-row', btn('End thinking now', endThinking), btn('Reset task', resetRound, '.dd-btn--ghost')),
+      section('This task', h('div.dd-row', btn('End thinking now', endThinking), btn('Reset task', resetRound, '.dd-btn--ghost'), btn('Download session file', () => api.personal.download().catch((e) => alert(`Download failed: ${e.code ?? e.message}`)), '.dd-btn--ghost')),
         h('div.dd-row', h('span.dd-meta', 'Timer speed'), speedSel)),
       section('Inspector', h('div.dd-row', tabBar, btn('Refresh', refreshInspect, '.dd-btn--ghost')), view)));
   function setOpen(open) {

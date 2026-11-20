@@ -76,6 +76,19 @@ export const api = {
     undoFailed: (round) => request('POST', '/api/personal/undo-failed', { json: { round } }),
     accept: (round, cardId, note) => request('POST', '/api/personal/accept', { json: { round, cardId, note } }),
     profile: (round, { retry = false } = {}) => request('POST', '/api/personal/profile', { json: { round, retry } }),
+    // The session file: fetched with the session header, then saved by the browser.
+    async download() {
+      const res = await fetch('/api/personal/export', { headers: { 'X-Session-Id': getSessionId() ?? '' } });
+      if (!res.ok) throw new ApiError(res.status, `http_${res.status}`);
+      const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'session.json';
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      return name;
+    },
   },
   dev: {
     startSession: (participantId, condition) => request('POST', '/api/dev/session', { json: { participantId, condition } }),

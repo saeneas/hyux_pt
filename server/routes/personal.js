@@ -10,6 +10,9 @@
 //                                          action: pick | neither | skip | final → the next pair (background)
 //               POST /accept               { round, cardId }  the final text; the profile starts in the background
 //   Profile     POST /profile              { round }          the profile (starts it if needed)
+//   Export      GET  /export                                  the session as a file (config.personal.offerExport):
+//               everything said and chosen, the plans, cards and profiles, and a replay section that
+//               scripts/replay.mjs can run against changed prompts
 //
 // Stored with the session (rounds[round].personal):
 //   { condition, deliberation: { startedAt, finishedAt, finishReason, items: [{ kind: 'prompt' | 'said', text,
@@ -46,7 +49,7 @@ const PLAN_SCHEMA = obj({
   message: str,
   reasoning: str,
 });
-const CARD = obj({ lens: str, why: str, kind: enm(['excerpt', 'full']), text: str });
+const CARD = obj({ lens: str, why: str, kind: enm(['excerpt', 'full']), text: str, focus: arr(str), carried: arr(str) });
 const STEP_SCHEMA = obj({
   known: obj({ settled: arr(obj({ decision: str, value: str, quote: str })), ruledOut: arr(str), open: arr(str), considered: arr(str) }),
   stages: arr(obj({ id: str, title: str, goal: str, status: enm(['done', 'current', 'next']), clarity: num })),
@@ -139,7 +142,7 @@ export function personalRoutes(app) {
       understanding: current?.understanding ?? null,
       comparison: current ? {
         n: current.n, mode: current.mode, question: current.question, message: current.message, final: current.action === 'final',
-        cards: current.cards.map(({ id, lens, why, kind, text }) => ({ id, lens, why, kind, text })), answered: Boolean(current.response),
+        cards: current.cards.map(({ id, lens, why, kind, text, focus, carried }) => ({ id, lens, why, kind, text, focus: focus ?? [], carried: carried ?? [] })), answered: Boolean(current.response),
       } : null,
       count: p.comparisons.length,
       accepted: p.accepted?.cardId ?? null,
@@ -218,7 +221,10 @@ export function personalRoutes(app) {
     p.comparisons.push({
       n, stageId: p.stages.find((s) => s.status === 'current')?.id ?? '', action, mode: d.mode, question: clean(d.question), message: clean(d.message),
       understanding: Math.max(0, Math.min(1, Number(d.understanding) || 0)), reasoning: d.reasoning,
-      cards: cards.map((c, i) => ({ id: `c${n}${i ? 'b' : 'a'}`, lens: clean(c.lens), why: clean(c.why), kind: action === 'final' ? 'full' : c.kind, text: cleanResponse(clean(c.text)) || clean(c.text) })),
+      cards: cards.map((c, i) => ({
+        id: `c${n}${i ? 'b' : 'a'}`, lens: clean(c.lens), why: clean(c.why), kind: action === 'final' ? 'full' : c.kind, text: cleanResponse(clean(c.text)) || clean(c.text),
+        focus: (c.focus ?? []).map(clean).filter(Boolean).slice(0, 4), carried: (c.carried ?? []).map(clean).filter(Boolean).slice(0, 4),
+      })),
       createdAt: new Date().toISOString(), budget: b,
     });
     log.write('server.personal.step', { n, latest, latencyMs: out.latencyMs, model: out.model, usage: out.usage, budget: b, answer: d });
@@ -433,6 +439,16 @@ export function personalRoutes(app) {
     res.json(publicState(p));
   });
 
+  // ----- export -----
+  r.get('/export', requireSession(store), (req, res) => {
+    if (!P.offerExport && !app.env.devMode) return res.status(404).json({ error: 'not_found' });
+    const data = exportSession(req.study);
+    const name = `session-${String(req.study.participantId).toLowerCase()}-${req.study.id.slice(0, 8)}.json`;
+    logger.forSession(req.study).write('server.personal.exported', { rounds: data.rounds.length });
+    res.set('Content-Disposition', `attachment; filename="${name}"`);
+    res.json(data);
+  });
+
   // ----- profile -----
   r.post('/profile', requireSession(store), async (req, res) => {
     const x = parse(req, res);
@@ -446,6 +462,38 @@ export function personalRoutes(app) {
   });
 
   return r;
+}
+
+// The session as a file. replay holds per task what the participant said and did, in order, so
+// scripts/replay.mjs can run it again; the rest is the full record of what the system made of it.
+export function exportSession(session) {
+  const letter = (c, id) => (c.cards[0]?.id === id ? 'A' : c.cards[1]?.id === id ? 'B' : null);
+  const rounds = Object.entries(session.rounds ?? {}).filter(([, rd]) => rd.personal).map(([k, rd]) => {
+    const p = rd.personal;
+    const comparisons = p.comparisons.map((c) => ({
+      n: c.n, mode: c.mode, action: c.action, question: c.question, message: c.message, understanding: c.understanding, reasoning: c.reasoning,
+      cards: c.cards.map((x, i) => ({ letter: i ? 'B' : 'A', lens: x.lens, why: x.why, kind: x.kind, text: x.text })),
+      response: c.response ? { action: c.response.action, card: letter(c, c.response.cardId), note: c.response.note ?? '', at: c.response.at } : null,
+    }));
+    return {
+      round: Number(k), taskId: rd.taskId, condition: p.condition, deliberation: p.deliberation, plan: p.plan ?? null, stages: p.stages ?? [],
+      known: p.known ?? null, comparisons, accepted: p.accepted ?? null, profile: p.profile ?? null,
+    };
+  });
+  return {
+    format: 'hyux-personalize-session/1',
+    exportedAt: new Date().toISOString(),
+    participantId: session.participantId,
+    sessionId: session.id,
+    rounds,
+    replay: rounds.map((r) => ({
+      round: r.round,
+      condition: r.condition,
+      said: (r.deliberation?.items ?? []).filter((x) => x.kind === 'said').map((x) => x.text),
+      responses: r.comparisons.filter((c) => c.response).map((c) => ({ action: c.response.action, card: c.response.card, note: c.response.note })),
+      accepted: r.accepted ? (r.comparisons.at(-1)?.cards.find((x) => x.text === r.accepted.text)?.letter ?? null) : null,
+    })),
+  };
 }
 
 // For the dev drawer: everything about the round, including what participants never see.

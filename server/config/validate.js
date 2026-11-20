@@ -101,6 +101,7 @@ export function validateConfig(config, { tasks, modes, hasApiKey, devMode }) {
   num('personal.deliberation.minSeconds', { min: 0, max: 900, int: true });
   num('personal.secondsPerComparison', { min: 15, max: 300, int: true });
   num('personal.timeoutSeconds', { min: 10, max: 600 });
+  bool('personal.offerExport');
   for (const call of ['adaptive', 'planner', 'step', 'evidence', 'profile']) {
     str(`personal.calls.${call}.model`);
     if (get(`personal.calls.${call}.reasoningEffort`) !== null) oneOf(`personal.calls.${call}.reasoningEffort`, ['none', 'low', 'medium', 'high', 'xhigh', 'max']);

@@ -28,6 +28,20 @@ Which model and reasoning effort each call uses, and the time budget, are in `co
    advance, revise the plan or finish, and writes the next pair: "confirm" when the system is sure
    (both cards start from what was said), "probe" when unsure (two different extremes, never the
    opposite of something ruled out), "alert" for a contingency the participant has not considered.
-   The number of pairs per stage is open; the remaining time is part of every call.
+   The number of pairs per stage is open; the remaining time is part of every call. Each card marks
+   the phrases the choice is about (`focus`, bright blue on screen) and those that carry earlier
+   choices (`carried`, a greyer blue).
 4. **Profile**. After the task, two passes: `profile-evidence.md` gathers grounded observations,
    `profile.md` reasons over them (with the profile of earlier tasks) and calibrates confidence.
+
+## Testing a prompt change with real sessions
+
+Test sessions end with a download (config `personal.offerExport`; also in the dev drawer): a file with
+everything the participant said and chose, the plans, cards and profile. `scripts/replay.mjs` runs such a
+file again against the running server with the current prompts and writes the new plan, pairs and
+profile next to the recorded ones:
+
+    node scripts/replay.mjs session-lisa-1a2b3c4d.json --out lisa-replay.json
+
+The transcripts and words are replayed as spoken; the card letters only keep the rhythm, because the new
+cards differ from the recorded ones.

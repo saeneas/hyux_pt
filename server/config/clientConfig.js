@@ -25,7 +25,7 @@ export function buildClientConfig({ config, env, modes }) {
     },
     // Prototyping: the names the welcome screen offers (empty: the ID field).
     participants: { pickList: config.participants.pickList ?? [] },
-    personal: { deliberation: { seconds: config.personal.deliberation.seconds, minSeconds: config.personal.deliberation.minSeconds } },
+    personal: { deliberation: { seconds: config.personal.deliberation.seconds, minSeconds: config.personal.deliberation.minSeconds }, offerExport: config.personal.offerExport },
     survey: { type: config.survey.type, externalUrl: config.survey.type === 'external' ? config.survey.externalUrl : null },
     limits: { maxAudioUploadMB: config.limits.maxAudioUploadMB },
     dev: env.devMode ? { timerSpeeds: config.dev.timerSpeeds, modes } : undefined,

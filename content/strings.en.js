@@ -288,6 +288,8 @@ export default {
     full: 'Whole email',
     pick: 'Choose This',
     picked: 'Chosen',
+    legendNow: 'What this choice is about',
+    legendBefore: 'What you chose before',
     noteHold: 'Hold to Say Why',
     noteStart: 'Say Why',
     noteHint: 'Say why you chose it. The more you say, the fewer detours.',
@@ -421,6 +423,12 @@ export default {
     codeLabel: 'Completion Code',
     codeHint: 'Enter this code where you signed up for the study to confirm that you have taken part.',
     close: 'You can close this window now.',
+    // Test sessions (config.personal.offerExport): the session as a file.
+    downloadLabel: 'Your Session File',
+    downloadText: 'Download a file with everything you said and chose. The research team uses it to test the system again.',
+    download: 'Download Session File',
+    downloaded: 'Saved as {name}.',
+    downloadFailed: 'The file could not be downloaded. Try again.',
   },
 
 };
