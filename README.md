@@ -8,6 +8,24 @@ This is a research prototype for a voice-driven AI task study. Participants are 
 
 ---
 
+## This branch: personalize
+
+Built on `compare`. Metacognitive scaffolding, voice and personalization in one flow of about 11 minutes:
+
+1. **Welcome:** the participant picks their name (`participants.pickList`).
+2. **Briefing:** the task and the time.
+3. **Think It Through** (`screens/deliberate.js`, about 3 minutes): the participant thinks aloud next to an empty email skeleton. The condition (open, static or adaptive prompts, `scaffold/deliberation.json`) is set per session in the dev drawer.
+4. **Task** (`modes/personal`, 8 minutes): a planner reads the deliberation and plans the path. Then pairs of cards, each with a question, a mode (built on what you said, two directions, something you may not have considered) and highlights of what the choice is about. The participant chooses (or Neither Fits) and says why; the path adapts after every answer. The task time starts when the first pair is on screen.
+5. **Questionnaire**, then **Your Profile** (`screens/profile.js`): the strategy and traits the system inferred, with confidence and evidence.
+
+All prompts and the strategy catalog are in [`scaffold/`](scaffold/README.md) and are read on every call. Models and effort per call are in `config.js` under `personal`; the server code is `server/routes/personal.js`.
+
+**Dev drawer** (tab at the right edge, `DEV_MODE=true`): start a session as one of the participants with a condition, jump to any step, end the thinking time, reset the task, download the session file, and look at the plan, the path and the profile while they are made.
+
+**Session files:** with `personal.offerExport` the end screen offers a download of the session. `node scripts/replay.mjs <file>` replays it against changed prompts.
+
+There is no mock mode on this branch: every call uses the real models, so `.env` needs `OPENAI_API_KEY`.
+
 ## Contents
 
 1. [Setup](#setup)
