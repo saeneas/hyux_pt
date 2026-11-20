@@ -9,9 +9,9 @@ reads these files on every call, so a change takes effect at the next call witho
 | `prompts/deliberation-adaptive.md` | adaptive condition, after each recording | the next question while the participant thinks aloud |
 | `prompts/first.md` | once, when the deliberation ends | the wishes, the first question (headline) and the first pair |
 | `prompts/step.md` | after every choice | the updated wishes, the next question and the next pair |
-| `strategies.md` | profile | the catalog of writing strategies |
-| `prompts/profile-evidence.md` | after the task | observations about the participant, each grounded in a quote or a measure |
-| `prompts/profile.md` | after the task | the preference parameters shown on the profile screen |
+| `strategies.md` | (not used at the moment) | a catalog of writing strategies |
+| `prompts/profile.md` | after the task | one preference per decision, shown on the profile screen |
+| `planning-logic.svg` | (documentation) | how the next pair is decided |
 
 Which model and reasoning effort each call uses, and the time budget, are in `config.js` under
 `personal`. The code that sends these prompts is `server/routes/personal.js`; the shape of every answer
@@ -22,16 +22,16 @@ file, input, answer, tokens, time) in `logs/<participant>.jsonl`, which git igno
 
 1. **Deliberate** (about 3 minutes). The participant thinks aloud next to an empty skeleton of the text
    (an email or a document, `form` in `data/tasks.json`). The condition decides which questions they see.
-2. **First pair** (`first.md`, about 6 s). One short call on a small model reads the deliberation and
-   returns the writer's wishes in their own words, the broadest question their words leave open (shown
-   as the headline) and two whole versions that answer it in two clearly different ways.
-3. **Each next pair** (`step.md`, about 6 s). The same, from the wishes, the chosen version and the
-   latest words. Nothing is planned beyond the next question, so a participant can settle several things
-   at once. The cards mark in bright blue where they differ and in a greyer blue what changed since the
-   version chosen last (computed from the texts).
-4. **Profile**. After the task, two passes: `profile-evidence.md` gathers grounded observations,
-   `profile.md` turns them into five to eight preference parameters, abstracted so they would help in
-   another situation.
+2. **First pair** (`first.md`, about 6 s) and 3. **each next pair** (`step.md`, about 6 s). See
+   `planning-logic.svg`. The model first applies the writer's words to the chosen version (the base:
+   change, move, reorder, add, cut, anywhere; nothing declined). Plain code then picks the next question
+   one step ahead: the whole text once, the structure once, the parts of the outline from top to bottom,
+   the wording last; after "Neither Fits" the same question again. The model may take another part only
+   when the writer's words point to it. It writes two versions of the base that answer that one question
+   differently and returns the outline of the base. The cards mark in bright blue where they differ and
+   in a greyer blue what changed since the version chosen last (computed from the texts).
+4. **Profile** (`profile.md`, one small-model call). One high-level preference per decision, shown
+   as a plain list after the questionnaire.
 
 ## Testing a prompt change with real sessions
 

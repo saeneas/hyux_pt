@@ -18,7 +18,7 @@
 //   { condition, deliberation: { startedAt, finishedAt, finishReason, items: [{ kind: 'prompt' | 'said', text,
 //     focus?, at }] }, plan: { brief } (the first wishes), brief (the wishes now), comparisons: [{ n, aspect,
 //     cards: [{ id, lens, text }], brief, createdAt, shownAt, response: { action, cardId, note, at } }],
-//     accepted: { cardId, text, at }, job: { kind, startedAt, error? }, profile: { evidence, result,
+//     accepted: { cardId, text, at }, job: { kind, startedAt, error? }, profile: { result,
 //     measures, createdAt } }
 // session.profile holds the latest profile, which the profile call of the next task builds on.
 // A minimal harness on purpose: one small-model call per pair, with the task, the writer's wishes, the
@@ -42,14 +42,13 @@ const arr = (items) => ({ type: 'array', items });
 const enm = (values) => ({ type: 'string', enum: values });
 
 const ADAPTIVE_SCHEMA = obj({ question: str, focus: str });
-// One answer shape for the first pair and every next one: the writer's wishes, the next question (the
-// headline) and two whole versions that answer it differently. Nothing planned beyond that.
+// One answer shape for the first pair and every next one: the writer's wishes, the next question (its
+// level and headline), the outline of the base (its parts, top to bottom) and two whole versions that
+// answer the question differently. Nothing planned beyond that.
 const CARD = obj({ lens: str, text: str });
-const STEP_SCHEMA = obj({ wishes: arr(str), aspect: str, cards: arr(CARD) });
-const EVIDENCE_SCHEMA = obj({
-  observations: arr(obj({ kind: enm(['said', 'chose', 'behaviour']), what: str, quote: str, source: str, about: str })),
-});
-const PROFILE_SCHEMA = obj({ parameters: arr(obj({ name: str, value: str, confidence: num })) });
+const STEP_SCHEMA = obj({ wishes: arr(str), level: enm(['whole', 'structure', 'part', 'wording']), part: str, aspect: str, outline: arr(str), cards: arr(CARD) });
+// The profile: one high-level preference per decision.
+const PROFILE_SCHEMA = obj({ preferences: arr(obj({ decision: str, preference: str })) });
 
 export function personalRoutes(app) {
   const { config, store, logger, ai, tasksById } = app;
@@ -158,10 +157,31 @@ export function personalRoutes(app) {
 
   // The first pair, from the deliberation. Then each next pair from the brief, the chosen version and
   // the writer's latest words. Both are one lean call (config.personal.calls.step).
+  // The next question, chosen by code, one step ahead: the whole text once, then the structure once,
+  // then the parts of the outline from top to bottom (each once), the wording last. After "Neither Fits"
+  // the same question again. The model may take another part only when the writer's words point to it.
+  const sameName = (a, b) => { const x = clean(a).toLowerCase(); const y = clean(b).toLowerCase(); return Boolean(x && y) && (x === y || x.includes(y) || y.includes(x)); };
+  function nextQuestion(p, latest) {
+    const last = p.comparisons.at(-1);
+    if (last && latest?.action === 'neither') return { level: last.level, part: last.part ?? '' };
+    const asked = p.comparisons;
+    if (!asked.some((c) => c.level === 'whole')) return { level: 'whole', part: '' };
+    if (!asked.some((c) => c.level === 'structure')) return { level: 'structure', part: '' };
+    const part = (last?.outline ?? []).find((x) => !asked.some((c) => c.level === 'part' && sameName(c.part, x)));
+    return part ? { level: 'part', part } : { level: 'wording', part: '' };
+  }
+  const questionText = (q) => ({
+    whole: 'the whole text: what it is at heart, how it talks to its readers or how long it is (whichever is most open)',
+    structure: 'the structure: which parts, how many, in which order',
+    part: `the part "${q.part}"`,
+    wording: 'the wording',
+  })[q.level];
+
   async function runFirst(session, round, key, roundData, task) {
     const p = roundData.personal;
-    const content = [taskText(task), `What the writer said while thinking the task through:\n${transcript(p)}`].join('\n\n');
-    await writePair(session, round, roundData, 'first', content, { action: 'start' }, budget(session, round, task));
+    const q = nextQuestion(p, null);
+    const content = [taskText(task), `What the writer said while thinking the task through:\n${transcript(p)}`, `Question for this pair: ${questionText(q)}.`].join('\n\n');
+    await writePair(session, round, roundData, 'first', content, { action: 'start', question: q }, budget(session, round, task));
   }
   async function runStep(session, round, key, roundData, task, latest) {
     const p = roundData.personal;
@@ -170,13 +190,14 @@ export function personalRoutes(app) {
     const content = [
       taskText(task),
       `Wishes so far:\n${(p.brief ?? []).map((x) => `- ${x}`).join('\n') || '(none)'}`,
-      `Question of the last pair: ${last?.aspect ?? ''}`,
+      `Parts of the chosen version, top to bottom: ${(last?.outline ?? []).join(' > ') || '(not known)'}`,
       latest.action === 'neither'
         ? `Neither version fit. Version A:\n${last.cards[0].text}\n\nVersion B:\n${last.cards[1].text}`
         : `The version they chose:\n${chosen?.text ?? ''}`,
       `What they said: ${latest.note ? `"${latest.note}"` : '(nothing)'}`,
+      `Question for this pair: ${questionText(nextQuestion(p, latest))}.`,
     ].join('\n\n');
-    await writePair(session, round, roundData, 'step', content, latest, budget(session, round, task));
+    await writePair(session, round, roundData, 'step', content, { ...latest, question: nextQuestion(p, latest) }, budget(session, round, task));
   }
   async function writePair(session, round, roundData, promptName, content, latest, b) {
     const p = roundData.personal;
@@ -190,7 +211,8 @@ export function personalRoutes(app) {
     p.brief = (d.wishes ?? []).map(clean).filter(Boolean);
     if (!p.plan) p.plan = { brief: p.brief, createdAt: new Date().toISOString() };
     p.comparisons.push({
-      n, aspect: clean(d.aspect),
+      n, aspect: clean(d.aspect), level: d.level, part: d.level === 'part' ? clean(d.part) || clean(d.aspect) : '', given: latest.question ?? null,
+      outline: (d.outline ?? []).map(clean).filter(Boolean),
       cards: cards.map((c, i) => ({ id: `c${n}${i ? 'b' : 'a'}`, lens: clean(c.lens), text: cleanResponse(clean(c.text)) || clean(c.text) })),
       brief: p.brief, createdAt: new Date().toISOString(), budget: b,
     });
@@ -222,28 +244,15 @@ export function personalRoutes(app) {
   async function runProfile(session, round, key, roundData) {
     const p = roundData.personal;
     const log = logger.forSession(session, round);
-    const m = measures(p);
-    const finalText = p.accepted?.text ?? p.comparisons.at(-1)?.cards?.find((c) => c.id === p.comparisons.at(-1)?.response?.cardId)?.text ?? '(no final text)';
-    const evidenceIn = [
-      `What the writer said while deliberating:\n${transcript(p)}`,
-      `The wishes the system took from it: ${JSON.stringify(p.brief ?? [])}`,
-      `Comparisons:\n${history(p)}`,
-      `Final text:\n${finalText}`,
-      `Behaviour measures:\n${JSON.stringify(m)}`,
-    ].join('\n\n');
-    const ev = await call('evidence', 'profile-evidence', evidenceIn, EVIDENCE_SCHEMA, log);
-    const profileIn = [
-      `Writing strategies (catalog):\n${await scaffold.strategies()}`,
-      `Observations from this task:\n${JSON.stringify(ev.data.observations)}`,
-      `Parameters from earlier tasks:\n${session.profile ? JSON.stringify(session.profile.result) : '(none: this is the first task)'}`,
-    ].join('\n\n');
-    const pr = await call('profile', 'profile', profileIn, PROFILE_SCHEMA, log);
-    p.profile = { evidence: ev.data.observations, result: pr.data, measures: m, createdAt: new Date().toISOString() };
-    await store.update(session, (s) => { s.profile = { round, result: pr.data, createdAt: p.profile.createdAt }; });
-    log.write('server.personal.profile', {
-      evidenceLatencyMs: ev.latencyMs, profileLatencyMs: pr.latencyMs, models: [ev.model, pr.model], usage: [ev.usage, pr.usage],
-      measures: m, observations: ev.data.observations, profile: pr.data,
-    });
+    const decisions = p.comparisons.filter((c) => c.response).map((c) => {
+      const chosen = c.response.action === 'pick' ? c.cards.find((x) => x.id === c.response.cardId) : null;
+      const other = chosen ? c.cards.find((x) => x !== chosen) : null;
+      return `- ${c.aspect}: ${chosen ? `chose "${chosen.lens}" over "${other.lens}"` : `neither "${c.cards[0].lens}" nor "${c.cards[1].lens}"`}${c.response.note ? `, saying: "${c.response.note}"` : ''}`;
+    }).join('\n') || '(no decisions)';
+    const out = await call('profile', 'profile', `Decisions, in order:\n${decisions}`, PROFILE_SCHEMA, log);
+    p.profile = { result: out.data, measures: measures(p), createdAt: new Date().toISOString() };
+    await store.update(session, (s) => { s.profile = { round, result: out.data, createdAt: p.profile.createdAt }; });
+    log.write('server.personal.profile', { latencyMs: out.latencyMs, model: out.model, usage: out.usage, measures: p.profile.measures, profile: out.data });
   }
 
   // ----- deliberation -----
@@ -436,7 +445,7 @@ export function exportSession(session) {
   const rounds = Object.entries(session.rounds ?? {}).filter(([, rd]) => rd.personal).map(([k, rd]) => {
     const p = rd.personal;
     const comparisons = p.comparisons.map((c) => ({
-      n: c.n, aspect: c.aspect, wishes: c.brief,
+      n: c.n, level: c.level, aspect: c.aspect, outline: c.outline, wishes: c.brief,
       cards: c.cards.map((x, i) => ({ letter: i ? 'B' : 'A', lens: x.lens, text: x.text })),
       response: c.response ? { action: c.response.action, card: letter(c, c.response.cardId), note: c.response.note ?? '', at: c.response.at } : null,
     }));
@@ -468,7 +477,7 @@ export function inspectRound(roundData) {
   return {
     condition: p.condition, job: p.job ?? null, deliberation: p.deliberation, plan: p.plan ?? null,
     wishes: p.brief ?? [],
-    comparisons: p.comparisons.map(({ n, aspect, cards, response }) => ({ n, aspect, lenses: cards.map((c) => c.lens), response })),
+    comparisons: p.comparisons.map(({ n, aspect, level, outline, cards, response }) => ({ n, aspect, level, outline, lenses: cards.map((c) => c.lens), response })),
     accepted: p.accepted ?? null, profile: p.profile ?? null,
   };
 }

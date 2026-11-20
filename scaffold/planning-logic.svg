@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="1180" viewBox="0 0 1040 1180" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b738b"/></marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0064d9"/></marker>
+    <style>
+      .h { font-size: 20px; font-weight: 700; fill: #1d2d3e; }
+      .b { font-size: 13.5px; font-weight: 700; fill: #1d2d3e; }
+      .t { font-size: 12.5px; fill: #1d2d3e; }
+      .s { font-size: 11.5px; fill: #556b82; }
+      .yes { font-size: 11.5px; font-weight: 700; fill: #256f3a; }
+      .no { font-size: 11.5px; font-weight: 700; fill: #aa0808; }
+      .w { fill: #ffffff; stroke: #c8d3de; stroke-width: 1.2; }
+      .code { fill: #f2f5f8; stroke: #8396a8; stroke-width: 1.2; }
+      .model { fill: #eaf3ff; stroke: #0064d9; stroke-width: 1.4; }
+      .line { stroke: #5b738b; stroke-width: 1.4; fill: none; }
+      .loop { stroke: #0064d9; stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+    </style>
+  </defs>
+  <rect width="1040" height="1180" fill="#ffffff"/>
+  <text x="40" y="38" class="h">How the next pair is decided: one step ahead, broad to fine, top to bottom</text>
+  <text x="40" y="60" class="s">Blue: the model does it (scaffold/prompts/step.md). Grey: plain code decides it (server/routes/personal.js, nextQuestion).</text>
+
+  <!-- legend -->
+  <rect x="740" y="76" width="18" height="12" rx="3" class="model"/><text x="764" y="86" class="s">model</text>
+  <rect x="820" y="76" width="18" height="12" rx="3" class="code"/><text x="844" y="86" class="s">code</text>
+
+  <!-- start -->
+  <rect x="300" y="100" width="440" height="56" rx="28" class="w"/>
+  <text x="520" y="124" text-anchor="middle" class="b">The writer chose A, B or Neither Fits</text>
+  <text x="520" y="143" text-anchor="middle" class="s">and may have said why (transcribed, unchanged)</text>
+  <path d="M520,156 L520,184" class="line" marker-end="url(#a)"/>
+
+  <!-- 1 base -->
+  <rect x="250" y="184" width="540" height="86" rx="10" class="model"/>
+  <text x="270" y="208" class="b">1  Apply their words first: the base</text>
+  <text x="270" y="228" class="t">Rewrite the chosen version so it does everything they asked, anywhere in the text:</text>
+  <text x="270" y="246" class="t">change, move, reorder, add, cut. Nothing is declined or postponed.</text>
+  <text x="270" y="262" class="s">Their words also update the wishes (kept in their own terms).</text>
+  <path d="M520,270 L520,300" class="line" marker-end="url(#a)"/>
+
+  <!-- 2 neither -->
+  <polygon points="520,300 640,340 520,380 400,340" class="code"/>
+  <text x="520" y="337" text-anchor="middle" class="b">2  Neither fits?</text>
+  <text x="520" y="354" text-anchor="middle" class="s">question repeats</text>
+  <path d="M640,340 L975,340 L975,923 L932,923" class="line" marker-end="url(#a)"/>
+  <text x="652" y="332" class="yes">yes: same question, two other directions</text>
+  <path d="M520,380 L520,410" class="line" marker-end="url(#a)"/>
+  <text x="530" y="400" class="no">no</text>
+
+  <!-- 3 pointed -->
+  <polygon points="520,410 690,455 520,500 350,455" class="model"/>
+  <text x="520" y="450" text-anchor="middle" class="b">3  Do their words point to a part</text>
+  <text x="520" y="468" text-anchor="middle" class="b">that still needs a decision?</text>
+  <path d="M690,455 L760,455" class="line"/>
+  <text x="700" y="446" class="yes">yes</text>
+  <rect x="760" y="430" width="190" height="50" rx="10" class="model"/>
+  <text x="772" y="452" class="b">Ask about that part</text>
+  <text x="772" y="470" class="s">the writer leads</text>
+  <path d="M855,480 L855,880" class="line" marker-end="url(#a)"/>
+  <path d="M520,500 L520,530" class="line" marker-end="url(#a)"/>
+  <text x="530" y="520" class="no">no: the top-down order</text>
+
+  <!-- 4 whole -->
+  <polygon points="520,530 650,568 520,606 390,568" class="code"/>
+  <text x="520" y="565" text-anchor="middle" class="b">4  Whole text asked yet?</text>
+  <path d="M390,568 L230,568" class="line"/>
+  <text x="300" y="560" class="no">no</text>
+  <rect x="40" y="540" width="190" height="62" rx="10" class="w"/>
+  <text x="52" y="562" class="b">Ask about the whole</text>
+  <text x="52" y="579" class="s">what it is at heart, how it</text>
+  <text x="52" y="594" class="s">speaks, how long it is</text>
+  <path d="M40,571 L24,571 L24,923 L248,923" class="line" marker-end="url(#a)"/>
+  <path d="M520,606 L520,636" class="line" marker-end="url(#a)"/>
+  <text x="530" y="626" class="yes">yes</text>
+
+  <!-- 5 structure -->
+  <polygon points="520,636 650,674 520,712 390,674" class="code"/>
+  <text x="520" y="671" text-anchor="middle" class="b">5  Structure asked yet?</text>
+  <path d="M390,674 L230,674" class="line"/>
+  <text x="300" y="666" class="no">no</text>
+  <rect x="40" y="646" width="190" height="62" rx="10" class="w"/>
+  <text x="52" y="668" class="b">Ask about the structure</text>
+  <text x="52" y="685" class="s">which parts, how many,</text>
+  <text x="52" y="700" class="s">in which order</text>
+  <path d="M40,677 L24,677" class="line"/>
+  <path d="M520,712 L520,742" class="line" marker-end="url(#a)"/>
+  <text x="530" y="732" class="yes">yes</text>
+
+  <!-- 6 parts -->
+  <polygon points="520,742 670,784 520,826 370,784" class="code"/>
+  <text x="520" y="778" text-anchor="middle" class="b">6  A part of the outline</text>
+  <text x="520" y="796" text-anchor="middle" class="b">not asked yet?</text>
+  <path d="M370,784 L330,784 L330,760 L230,760" class="line"/>
+  <text x="338" y="776" class="yes">yes</text>
+  <rect x="40" y="740" width="190" height="62" rx="10" class="w"/>
+  <text x="52" y="762" class="b">Ask about the first one</text>
+  <text x="52" y="779" class="s">from the top: opening,</text>
+  <text x="52" y="794" class="s">then each part in order</text>
+  <path d="M40,771 L24,771" class="line"/>
+  <path d="M670,784 L720,784 L720,830" class="line"/>
+  <text x="680" y="776" class="no">no</text>
+  <rect x="640" y="830" width="160" height="40" rx="10" class="w"/>
+  <text x="652" y="855" class="b">Ask about the wording</text>
+  <path d="M720,870 L720,880" class="line" marker-end="url(#a)"/>
+
+  <!-- 7 write -->
+  <rect x="250" y="880" width="680" height="86" rx="10" class="model"/>
+  <text x="270" y="904" class="b">7  Two versions of the base for this one question</text>
+  <text x="270" y="924" class="t">They answer it in two clearly different ways and are otherwise identical, same paragraphs.</text>
+  <text x="270" y="942" class="t">The model also returns the outline of the base: its parts from top to bottom (for step 6).</text>
+  <text x="270" y="958" class="s">About 6 s, gpt-6-luna, no reasoning. No history and no plan beyond this question.</text>
+  <path d="M590,966 L590,996" class="line" marker-end="url(#a)"/>
+
+  <!-- 8 show -->
+  <rect x="370" y="996" width="440" height="66" rx="10" class="w"/>
+  <text x="390" y="1020" class="b">8  The writer sees the headline and A | B</text>
+  <text x="390" y="1038" class="s">bright blue: where A and B differ (code)</text>
+  <text x="390" y="1054" class="s">grey blue: what changed since their last choice (code)</text>
+  <path d="M810,1029 L1010,1029 L1010,128 L740,128" class="loop" marker-end="url(#b)"/>
+  <text x="1000" y="600" class="s" fill="#0064d9" transform="rotate(90 1000 600)">next pair, until “Use This Version”</text>
+
+  <!-- memory -->
+  <rect x="40" y="1086" width="960" height="70" rx="10" fill="#f7f9fb" stroke="#e1e7ec"/>
+  <text x="56" y="1110" class="b">Kept between steps</text>
+  <text x="56" y="1130" class="t">the wishes in their own words · the chosen version · its outline · which questions were asked (level and part)</text>
+  <text x="56" y="1147" class="s">Test run (hospital task): Core approach → Order → Renewal context → Usage and value → Renewal proposal</text>
+</svg>

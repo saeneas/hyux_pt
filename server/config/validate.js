@@ -103,7 +103,7 @@ export function validateConfig(config, { tasks, modes, hasApiKey, devMode }) {
   num('personal.timeoutSeconds', { min: 10, max: 600 });
   bool('personal.offerExport');
   if (get('logging.modelCalls') !== undefined) bool('logging.modelCalls');
-  for (const call of ['adaptive', 'step', 'evidence', 'profile']) {
+  for (const call of ['adaptive', 'step', 'profile']) {
     str(`personal.calls.${call}.model`);
     if (get(`personal.calls.${call}.reasoningEffort`) !== null) oneOf(`personal.calls.${call}.reasoningEffort`, ['none', 'low', 'medium', 'high', 'xhigh', 'max']);
     num(`personal.calls.${call}.maxOutputTokens`, { min: 64, max: 64000, int: true });

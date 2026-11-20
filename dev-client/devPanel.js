@@ -107,14 +107,15 @@ export function initDevPanel(ctx) {
         h('h4.dd-h', 'Next question'), h('p.dd-text', rd.comparisons?.at(-1)?.aspect ?? '–'));
     } else if (prefs.tab === 'path') {
       view.append(h('h4.dd-h', 'Pairs'), h('ol.dd-list', (rd.comparisons ?? []).map((c) => h('li',
-        h('b', c.aspect), h('br'),
+        h('b', `${c.level ?? ''} · ${c.aspect}`), h('br'),
+        h('span.dd-meta', (c.outline ?? []).join(' > ')), h('br'),
         `A: ${c.lenses[0]} | B: ${c.lenses[1]}`,
         c.response ? h('div.dd-resp', `→ ${c.response.action}${c.response.cardId ? ` ${c.response.cardId.slice(-1).toUpperCase()}` : ''}${c.response.note ? `: “${c.response.note}”` : ''}`) : null))));
     } else if (prefs.tab === 'profile') {
       const pr = rd.profile;
       if (!pr) return view.append(h('p.dd-meta', 'No profile yet (it starts when a version is used, at the latest with the questionnaire).'));
-      view.append(h('h4.dd-h', 'Parameters'), h('ul.dd-list', (pr.result?.parameters ?? []).map((x) => h('li', `${x.name}: ${x.value} (${Math.round((x.confidence ?? 0) * 100)} %)`))),
-        h('h4.dd-h', 'Measures'), json(pr.measures), h('h4.dd-h', `Observations (${pr.evidence?.length ?? 0})`), json(pr.evidence));
+      view.append(h('h4.dd-h', 'Preferences'), h('ul.dd-list', (pr.result?.preferences ?? []).map((x) => h('li', `${x.decision}: ${x.preference}`))),
+        h('h4.dd-h', 'Measures'), json(pr.measures));
     }
   }
   async function refreshInspect() {

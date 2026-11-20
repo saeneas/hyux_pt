@@ -1,7 +1,5 @@
-// Profile (personalize): after the questionnaire, the participant sees the preference parameters the
-// system inferred from how they worked: a short list of name and value, abstracted from the task so they
-// would help in another situation. Made on the server in two passes (scaffold/prompts/profile-evidence.md,
-// profile.md); this screen waits for it. Confidence is kept for the dev drawer, not shown here.
+// Profile (personalize): after the questionnaire, the participant sees one high-level preference per
+// decision they made, as a plain list (scaffold/prompts/profile.md, one small-model call).
 import { h, clear, messageStrip } from '../core/dom.js';
 import { t } from '../core/strings.js';
 import { api } from '../core/api.js';
@@ -30,9 +28,9 @@ export default function create() {
           const res = await api.personal.profile(round, { retry });
           if (gone) return;
           if (res.profile) {
-            const params = res.profile.parameters ?? [];
-            clear(body).append(h('dl.pf-params', params.flatMap((x) => [h('dt', x.name), h('dd', x.value)])));
-            logEvent('profile.shown', { parameters: params.length });
+            const prefs = res.profile.preferences ?? [];
+            clear(body).append(h('dl.pf-params', prefs.flatMap((x) => [h('dt', x.decision), h('dd', x.preference)])));
+            logEvent('profile.shown', { preferences: prefs.length });
             return;
           }
           if (res.error) {
