@@ -212,7 +212,7 @@ export default {
   // sessions/. Never commit either: they hold what participants said.
   logging: {
     dir: 'logs',
-    storeAudio: true, // stores each uploaded recording in logs/audio/<participant>/ (test sessions)
+    storeAudio: false, // true would also keep each recording in logs/audio/<participant>/; the transcripts are always logged
     modelCalls: true, // logs every model call of the personalize mode in full: prompt file, input, answer
   },
 

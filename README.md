@@ -24,7 +24,7 @@ All prompts and the strategy catalog are in [`scaffold/`](scaffold/README.md) an
 
 **Dev drawer** (tab at the right edge, `DEV_MODE=true`): start a session as one of the participants with a condition, jump to any step, end the thinking time, reset the task, download the session file, and look at the brief, the aspects, every pair and the profile while they are made.
 
-**Logs** stay out of git: `logs/<participant>.jsonl` holds every event and, with `logging.modelCalls`, every model call in full; `logging.storeAudio` keeps the recordings in `logs/audio/`; sessions are in `sessions/`.
+**Logs** stay out of git: `logs/<participant>.jsonl` holds every event and, with `logging.modelCalls`, every model call in full; recordings are not kept, only their transcripts; sessions are in `sessions/`.
 
 **Session files:** with `personal.offerExport` the end screen offers a download of the session. `node scripts/replay.mjs <file>` replays it against changed prompts.
 
