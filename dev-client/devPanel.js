@@ -102,14 +102,12 @@ export function initDevPanel(ctx) {
       view.append(kv('Condition', rd.condition), kv('Job', rd.job ? `${rd.job.kind}${rd.job.error ? ` (failed: ${rd.job.error})` : ' …'}` : 'idle'));
       if (!rd.plan) return view.append(h('p.dd-meta', 'Nothing yet: the first pair comes when the thinking step ends.'));
       view.append(
-        kv('Approach', rd.approach ?? rd.plan.approach),
-        h('h4.dd-h', 'Brief (what the participant wants)'), h('ul.dd-list', (rd.brief ?? []).map((x) => h('li', x))),
-        h('h4.dd-h', 'Settled'), h('ul.dd-list', (rd.settled ?? []).map((x) => h('li', x))),
-        h('h4.dd-h', 'Open, general first'), h('ol.dd-list', (rd.open ?? []).map((x) => h('li', x))),
-        h('h4.dd-h', 'Open at the start'), h('ol.dd-list', (rd.plan.open ?? []).map((x) => h('li', x))));
+        h('h4.dd-h', 'Wishes now'), h('ul.dd-list', (rd.wishes ?? []).map((x) => h('li', x))),
+        h('h4.dd-h', 'Wishes after thinking aloud'), h('ul.dd-list', (rd.plan.brief ?? []).map((x) => h('li', x))),
+        h('h4.dd-h', 'Next question'), h('p.dd-text', rd.comparisons?.at(-1)?.aspect ?? '–'));
     } else if (prefs.tab === 'path') {
       view.append(h('h4.dd-h', 'Pairs'), h('ol.dd-list', (rd.comparisons ?? []).map((c) => h('li',
-        h('b', `${c.aspect} · ${c.mode}${c.final ? ' · final' : ''}`), h('br'),
+        h('b', c.aspect), h('br'),
         `A: ${c.lenses[0]} | B: ${c.lenses[1]}`,
         c.response ? h('div.dd-resp', `→ ${c.response.action}${c.response.cardId ? ` ${c.response.cardId.slice(-1).toUpperCase()}` : ''}${c.response.note ? `: “${c.response.note}”` : ''}`) : null))));
     } else if (prefs.tab === 'profile') {

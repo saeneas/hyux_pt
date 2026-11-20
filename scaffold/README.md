@@ -7,8 +7,8 @@ reads these files on every call, so a change takes effect at the next call witho
 |---|---|---|
 | `deliberation.json` | deliberation screen | the prompt conditions (open, static, adaptive), their intro text and fixed questions |
 | `prompts/deliberation-adaptive.md` | adaptive condition, after each recording | the next question while the participant thinks aloud |
-| `prompts/first.md` | once, when the deliberation ends | the brief (what the participant wants), the approach, the aspects from general to specific, the first pair |
-| `prompts/step.md` | after every choice | the updated brief and aspects, and the next pair |
+| `prompts/first.md` | once, when the deliberation ends | the wishes, the first question (headline) and the first pair |
+| `prompts/step.md` | after every choice | the updated wishes, the next question and the next pair |
 | `strategies.md` | profile | the catalog of writing strategies |
 | `prompts/profile-evidence.md` | after the task | observations about the participant, each grounded in a quote or a measure |
 | `prompts/profile.md` | after the task | the preference parameters shown on the profile screen |
@@ -22,14 +22,13 @@ file, input, answer, tokens, time) in `logs/<participant>.jsonl`, which git igno
 
 1. **Deliberate** (about 3 minutes). The participant thinks aloud next to an empty skeleton of the text
    (an email or a document, `form` in `data/tasks.json`). The condition decides which questions they see.
-2. **First pair** (`first.md`, about 6 s). One lean call on a small model reads the deliberation and
-   writes the brief, the approach, the open aspects (the core and the tone first, then arguments, weak
-   points, the ask, wording last) and two whole versions that differ on the first open aspect.
-3. **Each next pair** (`step.md`, about 6 s). The call gets only the task, the brief, the aspects, the
-   chosen version and the participant's latest words (no history). Their words win: a wish about a
-   detail or about the whole feel goes into the brief and into both new versions. The participant sees
-   only a headline of a few words (the aspect) and the two versions; the cards mark in bright blue where
-   they differ and in a greyer blue what changed since the version chosen last (computed from the texts).
+2. **First pair** (`first.md`, about 6 s). One short call on a small model reads the deliberation and
+   returns the writer's wishes in their own words, the broadest question their words leave open (shown
+   as the headline) and two whole versions that answer it in two clearly different ways.
+3. **Each next pair** (`step.md`, about 6 s). The same, from the wishes, the chosen version and the
+   latest words. Nothing is planned beyond the next question, so a participant can settle several things
+   at once. The cards mark in bright blue where they differ and in a greyer blue what changed since the
+   version chosen last (computed from the texts).
 4. **Profile**. After the task, two passes: `profile-evidence.md` gathers grounded observations,
    `profile.md` turns them into five to eight preference parameters, abstracted so they would help in
    another situation.

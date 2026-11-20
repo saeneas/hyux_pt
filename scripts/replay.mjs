@@ -62,14 +62,14 @@ async function waitPair() {
 }
 await waitPair();
 const plan = (await call('GET', '/api/dev/inspect')).rounds[round].plan;
-log(`\napproach: ${plan.approach}; open: ${(plan.open ?? []).join(' > ')}`);
+log(`\nwishes after thinking aloud: ${(plan.brief ?? []).join('; ')}`);
 
 const pairs = [];
-const pairOf = () => ({ n: state.comparison.n, aspect: state.comparison.aspect, final: state.comparison.final, cards: state.comparison.cards });
+const pairOf = () => ({ n: state.comparison.n, aspect: state.comparison.aspect, cards: state.comparison.cards });
 for (const r of rec.responses.filter((x) => ['pick', 'neither'].includes(x.action))) {
   const c = state.comparison;
   pairs.push({ ...pairOf(), response: r });
-  log(`#${c.n} ${c.aspect}${c.final ? ' (final)' : ''}: A ${c.cards[0].lens} | B ${c.cards[1].lens}\n  → ${r.action}${r.card ? ` ${r.card}` : ''}${r.note ? `: ${r.note}` : ''}`);
+  log(`#${c.n} ${c.aspect}: A ${c.cards[0].lens} | B ${c.cards[1].lens}\n  → ${r.action}${r.card ? ` ${r.card}` : ''}${r.note ? `: ${r.note}` : ''}`);
   const cardId = r.action === 'pick' ? c.cards[r.card === 'B' ? 1 : 0].id : undefined;
   await call('POST', '/api/personal/act', { round, action: r.action === 'pick' && !cardId ? 'neither' : r.action, cardId, note: r.note ?? '' });
   await waitPair();

@@ -639,3 +639,16 @@ mark.ts-mark { color: inherit; background: var(--ts-bg); border-bottom: 0.125rem
 .pf-params dd { margin: 0; font-family: var(--font-semibold); font-weight: 600; color: var(--sapTextColor); }
 
 .pd-skeleton__bar--title { height: 1.25rem; margin-bottom: 0.5rem; }
+
+/* personalize, third pass: the work area keeps the calmer, centred width of the earlier version. */
+.ps-main, .ps-controls__row { width: 100%; max-width: 64rem; margin-inline: auto; box-sizing: border-box; }
+.ps-main { padding: var(--sapContent_Space_Medium) var(--sapContent_Space_Medium) var(--sapContent_Space_Small); gap: var(--sapContent_Space_Small); }
+.ps-controls { padding-inline: var(--sapContent_Space_Medium); }
+.ps-pair { gap: var(--sapContent_Space_Small); max-height: 34rem; }
+.ps-card__text { font-size: var(--sapFontSize); line-height: 1.55; }
+.ps-headline { font-size: var(--sapFontHeader5Size); }
+.ps-note { padding: 0.5rem 0.75rem; }
+.ps-mic { width: 2.75rem; height: 2.75rem; }
+.pd-main { max-width: 64rem; }
+.pd-body { grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.9fr); gap: var(--sapContent_Space_Medium); }
+.pd-skeleton { flex: 0 1 auto; max-height: 28rem; }

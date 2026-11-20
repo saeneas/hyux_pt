@@ -181,8 +181,7 @@ export default {
   stt: {
     model: 'gpt-transcribe',
     languages: ['en'], // gpt-transcribe takes a list of expected languages
-    // Vocabulary hint for the transcription model: the words of the scenario.
-    prompt: 'A sales rep thinks aloud about a sales task: a renewal email to the CFO of a hospital network (licences, scheduling platform, nurses, retention, overtime) or an idea for a supermarket chain (checkout, inventory, self checkout, fresh produce, waste, discount stores, staff representatives, finance director).',
+    prompt: '', // no hint: the recording is transcribed as it is, and the transcript is used unchanged
     timeoutSeconds: 60, // long recordings of the deliberation
   },
 
