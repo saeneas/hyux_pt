@@ -16,7 +16,7 @@ import { api } from '../../core/api.js';
 import { logEvent } from '../../core/logEvent.js';
 import { createTaskSidebar } from '../../core/canvas/taskSidebar.js';
 import { createVoiceInput } from '../../core/canvas/voiceInput.js';
-import { renderMarked } from './marks.js';
+import { analyse, markedNodes } from './marks.js';
 
 export function createCanvas(ctx, { round, task, live = true, conceal = false, showFinish = true }) {
   const { config } = ctx;
@@ -167,6 +167,26 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
   acceptBtn.addEventListener('click', accept);
 
   // ----- render -----
+  // How the cards help orientation: config.personal.display, overridden per browser in the dev drawer.
+  const display = () => ({ highlight: 'sentences', annotate: 'labels', ...(config.personal?.display ?? {}), ...(ctx.dev?.display ?? {}) });
+  function cardBody(card, other, previous) {
+    const d = display();
+    const paras = analyse(card.text, other.text, previous);
+    const labels = card.labels?.length === paras.length ? card.labels : null; // a label per paragraph, or none
+    const body = h(`div.ps-card__body.is-annotate-${d.annotate}.is-highlight-${d.highlight}`);
+    paras.forEach((p, i) => {
+      const cls = `div.ps-para${p.differs ? '.is-differs' : ''}${p.changed ? '.is-changed' : ''}${p.moved ? '.is-moved' : ''}`;
+      const label = labels && d.annotate !== 'off' && labels[i] ? labels[i] : '';
+      const moved = p.moved && d.highlight !== 'off' ? h('span.ps-para__moved', t('personal.moved')) : null;
+      body.append(h(cls,
+        label || moved ? h('span.ps-para__label', label, moved) : null,
+        h('p.ps-para__text', markedNodes(p, d.highlight === 'sentences'))));
+    });
+    return body;
+  }
+  // The dev drawer changed the display: draw the pair again.
+  if (ctx.dev) ctx.dev.onDisplay = () => { pairEl.dataset.n = ''; render(); };
+
   function renderPair() {
     const c = comparison();
     if (!c) {
@@ -180,7 +200,7 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
         const other = c.cards[1 - i];
         const el = h('article.ps-card', { dataset: { id: card.id }, style: `--delay:${i * 80}ms`, tabindex: '0', role: 'button', 'aria-pressed': 'false' },
           h('header.ps-card__head', h('span.ps-card__letter', String.fromCharCode(65 + i)), h('h3.ps-card__lens', card.lens)),
-          h('div.ps-card__body', h('p.ps-card__text', renderMarked(card.text, other.text, c.previous))));
+          cardBody(card, other, c.previous));
         const pick = () => {
           if (locked || writing() || state.accepted) return;
           choice = card.id;
@@ -195,7 +215,7 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
       // A long version opens at the first passage where it differs.
       requestAnimationFrame(() => {
         for (const body of pairEl.querySelectorAll('.ps-card__body')) {
-          const mark = body.querySelector('.ps-mark--now');
+          const mark = body.querySelector('.ps-mark--now, .ps-para.is-differs');
           if (mark && mark.offsetTop > body.clientHeight * 0.6) body.scrollTop = Math.max(0, mark.offsetTop - body.clientHeight / 3);
         }
       });
@@ -275,6 +295,7 @@ export function createCanvas(ctx, { round, task, live = true, conceal = false, s
       clearTimeout(pollTimer);
       input?.destroy();
       sidebar.destroy();
+      if (ctx.dev) ctx.dev.onDisplay = null;
       waiters.splice(0).forEach((fn) => fn());
     },
   });

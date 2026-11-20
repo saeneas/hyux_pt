@@ -86,7 +86,7 @@ for (;;) {
   if (p.error) throw new Error(`The profile failed: ${p.error}`);
   if (p.profile) { profile = p.profile; break; }
 }
-log(`\npreferences: ${(profile.preferences ?? []).map((x) => `${x.decision}: ${x.preference}`).join('; ')}`);
+log(`\npreferences: ${(profile.preferences ?? []).map((x) => `${x.topic}: ${x.preference}`).join('; ')}`);
 
 writeFileSync(outFile, JSON.stringify({
   replayedAt: new Date().toISOString(), source: file, round: roundNo, seconds: Math.round((Date.now() - started) / 1000),

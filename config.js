@@ -13,10 +13,10 @@ export default {
 
   participants: {
     // Valid participant IDs. Never sent to the browser. Matching ignores case and surrounding spaces.
-    validIds: ['Marcus', 'Lisa', 'Duchy', 'Aeneas'],
+    validIds: ['Marcus', 'Lisa', 'Dachi', 'Aeneas'],
     // Prototyping: the welcome screen offers these names in a list instead of an ID field (they are then
     // sent to the browser). Empty: the ID field.
-    pickList: ['Marcus', 'Lisa', 'Duchy', 'Aeneas'],
+    pickList: ['Marcus', 'Lisa', 'Dachi', 'Aeneas'],
     // false: an ID can start one session. Entering it again resumes that session until it is
     // completed; after that the ID is rejected. true: every entry starts a new session.
     allowReuse: true,
@@ -169,9 +169,15 @@ export default {
     calls: {
       adaptive: { model: 'gpt-6-luna', reasoningEffort: 'none', maxOutputTokens: 300 },
       step: { model: 'gpt-6-luna', reasoningEffort: 'none', maxOutputTokens: 4000 }, // the first pair and every next one (about 5 s)
-      profile: { model: 'gpt-6-luna', reasoningEffort: 'none', maxOutputTokens: 800 }, // one preference per decision
+      profile: { model: 'gpt-6-luna', reasoningEffort: 'none', maxOutputTokens: 800 }, // three to six preferences
     },
     timeoutSeconds: 120, // per call; the participant sees progress meanwhile
+    // How the cards help orientation (the dev drawer can change it per browser):
+    //   highlight: 'sentences' (bright blue: differs between A and B; grey blue: changed since the last
+    //   choice) | 'paragraphs' (differing paragraphs marked, identical ones dimmed) | 'off'
+    //   annotate: 'labels' (a faint heading above each paragraph) | 'blocks' (each paragraph in a soft box
+    //   with its label) | 'off'
+    display: { highlight: 'sentences', annotate: 'labels' },
     // The end screen offers the session as a file (what was said and chosen, plans, cards, profiles), for
     // test sessions with colleagues. scripts/replay.mjs runs such a file again against changed prompts.
     offerExport: true,

@@ -42,13 +42,39 @@ const arr = (items) => ({ type: 'array', items });
 const enm = (values) => ({ type: 'string', enum: values });
 
 const ADAPTIVE_SCHEMA = obj({ question: str, focus: str });
-// One answer shape for the first pair and every next one: the writer's wishes, the next question (its
-// level and headline), the outline of the base (its parts, top to bottom) and two whole versions that
-// answer the question differently. Nothing planned beyond that.
-const CARD = obj({ lens: str, text: str });
-const STEP_SCHEMA = obj({ wishes: arr(str), level: enm(['whole', 'structure', 'part', 'wording']), part: str, aspect: str, outline: arr(str), cards: arr(CARD) });
-// The profile: one high-level preference per decision.
-const PROFILE_SCHEMA = obj({ preferences: arr(obj({ decision: str, preference: str })) });
+// One answer shape for the first pair and every next one: the writer's wishes, the question it took (its
+// level and headline), the base as labelled paragraphs, and two versions given only as their order and
+// the paragraphs they change. The server builds the versions from the base (buildCard), so everything
+// not changed is exactly the same in both. Nothing planned beyond the next question.
+const PARA = obj({ label: str, text: str });
+const CARD = obj({ lens: str, order: arr(str), changes: arr(PARA) });
+const STEP_SCHEMA = obj({ wishes: arr(str), level: enm(['whole', 'structure', 'part', 'wording']), part: str, aspect: str, base: arr(PARA), cards: arr(CARD) });
+const FRAME = /^(subject|greeting|salutation|sign[- ]?off|closing|signature)$/i; // not parts of the body
+
+// A version from the base: the paragraphs in the version's order (a base label left out is cut), with
+// its changes put in. A change with a new label that the order does not name goes before the sign-off.
+function buildCard(base, card) {
+  const byLabel = new Map(base.map((p) => [p.label.toLowerCase(), p]));
+  // A change is one paragraph: no blank lines inside, and no line that repeats the greeting, subject or
+  // sign-off of the base (the model sometimes writes them into a changed paragraph again).
+  const frameLines = new Set(base.filter((p) => FRAME.test(p.label)).flatMap((p) => p.text.split('\n').map((l) => l.trim().toLowerCase())));
+  const tidy = (label, text) => clean(text).replace(/\n\s*\n+/g, '\n').split('\n')
+    .filter((l) => FRAME.test(label) || !frameLines.has(l.trim().toLowerCase())).join('\n').trim();
+  const changes = new Map((card.changes ?? []).map((p) => [clean(p.label).toLowerCase(), { label: clean(p.label), text: tidy(p.label, p.text) }]));
+  // The order says which paragraphs the version has: a base label left out is cut. No order: the base's.
+  let order = (card.order ?? []).map((l) => clean(l)).filter((l) => byLabel.has(l.toLowerCase()) || changes.has(l.toLowerCase()));
+  if (!order.length) order = base.map((p) => p.label);
+  for (const [key, c] of changes) {
+    if (order.some((l) => l.toLowerCase() === key)) continue;
+    const last = order.length && FRAME.test(order.at(-1)) ? order.length - 1 : order.length;
+    order.splice(last, 0, c.label);
+  }
+  order = order.filter((l, i) => order.findIndex((x) => x.toLowerCase() === l.toLowerCase()) === i);
+  const paras = order.map((l) => changes.get(l.toLowerCase()) ?? byLabel.get(l.toLowerCase())).filter((p) => p?.text);
+  return { labels: paras.map((p) => p.label), text: paras.map((p) => p.text).join('\n\n'), changed: [...changes.keys()] };
+}
+// The profile: three to six high-level preferences, from the deliberation and the decisions.
+const PROFILE_SCHEMA = obj({ preferences: arr(obj({ topic: str, preference: str })) });
 
 export function personalRoutes(app) {
   const { config, store, logger, ai, tasksById } = app;
@@ -127,7 +153,7 @@ export function personalRoutes(app) {
       error: p.job?.error ?? null,
       comparison: current ? {
         n: current.n, aspect: current.aspect,
-        cards: current.cards.map(({ id, lens, text }) => ({ id, lens, text })), answered: Boolean(current.response),
+        cards: current.cards.map(({ id, lens, labels, text }) => ({ id, lens, labels: labels ?? [], text })), answered: Boolean(current.response),
         previous: before ? before.cards.find((c) => c.id === before.response.cardId)?.text ?? null : null,
       } : null,
       count: p.comparisons.length,
@@ -167,7 +193,10 @@ export function personalRoutes(app) {
     const asked = p.comparisons;
     if (!asked.some((c) => c.level === 'whole')) return { level: 'whole', part: '' };
     if (!asked.some((c) => c.level === 'structure')) return { level: 'structure', part: '' };
-    const part = (last?.outline ?? []).find((x) => !asked.some((c) => c.level === 'part' && sameName(c.part, x)));
+    // The parts of the version they chose, in its order (it may have been reordered).
+    const chosen = last?.cards.find((c) => c.id === latest?.cardId);
+    const outline = chosen?.labels ? chosen.labels.filter((l) => !FRAME.test(l)) : last?.outline ?? [];
+    const part = outline.find((x) => !asked.some((c) => c.level === 'part' && sameName(c.part, x)));
     return part ? { level: 'part', part } : { level: 'wording', part: '' };
   }
   const questionText = (q) => ({
@@ -176,6 +205,12 @@ export function personalRoutes(app) {
     part: `the part "${q.part}"`,
     wording: 'the wording',
   })[q.level];
+
+  // A version as labelled paragraphs, as the model reads it.
+  const labelled = (card) => {
+    const paras = String(card?.text ?? '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
+    return paras.map((t, i) => `[${card?.labels?.[i] ?? `Paragraph ${i + 1}`}]\n${t}`).join('\n\n');
+  };
 
   async function runFirst(session, round, key, roundData, task) {
     const p = roundData.personal;
@@ -190,10 +225,10 @@ export function personalRoutes(app) {
     const content = [
       taskText(task),
       `Wishes so far:\n${(p.brief ?? []).map((x) => `- ${x}`).join('\n') || '(none)'}`,
-      `Parts of the chosen version, top to bottom: ${(last?.outline ?? []).join(' > ') || '(not known)'}`,
+
       latest.action === 'neither'
-        ? `Neither version fit. Version A:\n${last.cards[0].text}\n\nVersion B:\n${last.cards[1].text}`
-        : `The version they chose:\n${chosen?.text ?? ''}`,
+        ? `Neither version fit. Version A:\n${labelled(last.cards[0])}\n\nVersion B:\n${labelled(last.cards[1])}`
+        : `The version they chose, by paragraph:\n${labelled(chosen)}`,
       `What they said: ${latest.note ? `"${latest.note}"` : '(nothing)'}`,
       `Question for this pair: ${questionText(nextQuestion(p, latest))}.`,
     ].join('\n\n');
@@ -205,15 +240,16 @@ export function personalRoutes(app) {
     const out = await call('step', promptName, content, STEP_SCHEMA, logger.forSession(session, round))
       .catch(() => call('step', promptName, content, STEP_SCHEMA, logger.forSession(session, round)));
     const d = out.data;
-    const cards = (d.cards ?? []).slice(0, 2);
-    if (cards.length < 2 || cards.some((c) => !clean(c.text))) throw new Error('The step did not return two versions');
+    const base = (d.base ?? []).map((x) => ({ label: clean(x.label), text: clean(x.text).replace(/\n\s*\n+/g, '\n') })).filter((x) => x.label && x.text);
+    const cards = (d.cards ?? []).slice(0, 2).map((c) => ({ lens: clean(c.lens), ...buildCard(base, c) }));
+    if (!base.length || cards.length < 2 || cards.some((c) => !c.text)) throw new Error('The step did not return two versions');
     const n = p.comparisons.length + 1;
     p.brief = (d.wishes ?? []).map(clean).filter(Boolean);
     if (!p.plan) p.plan = { brief: p.brief, createdAt: new Date().toISOString() };
     p.comparisons.push({
       n, aspect: clean(d.aspect), level: d.level, part: d.level === 'part' ? clean(d.part) || clean(d.aspect) : '', given: latest.question ?? null,
-      outline: (d.outline ?? []).map(clean).filter(Boolean),
-      cards: cards.map((c, i) => ({ id: `c${n}${i ? 'b' : 'a'}`, lens: clean(c.lens), text: cleanResponse(clean(c.text)) || clean(c.text) })),
+      outline: base.map((x) => x.label).filter((l) => !FRAME.test(l)),
+      cards: cards.map((c, i) => ({ id: `c${n}${i ? 'b' : 'a'}`, lens: c.lens, labels: c.labels, changed: c.changed, text: c.text })),
       brief: p.brief, createdAt: new Date().toISOString(), budget: b,
     });
     logger.forSession(session, round).write('server.personal.step', { n, prompt: promptName, latest, latencyMs: out.latencyMs, model: out.model, usage: out.usage, answer: d });
@@ -249,7 +285,8 @@ export function personalRoutes(app) {
       const other = chosen ? c.cards.find((x) => x !== chosen) : null;
       return `- ${c.aspect}: ${chosen ? `chose "${chosen.lens}" over "${other.lens}"` : `neither "${c.cards[0].lens}" nor "${c.cards[1].lens}"`}${c.response.note ? `, saying: "${c.response.note}"` : ''}`;
     }).join('\n') || '(no decisions)';
-    const out = await call('profile', 'profile', `Decisions, in order:\n${decisions}`, PROFILE_SCHEMA, log);
+    const content = [`What they said while thinking the task through:\n${transcript(p)}`, `Decisions, in order:\n${decisions}`].join('\n\n');
+    const out = await call('profile', 'profile', content, PROFILE_SCHEMA, log);
     p.profile = { result: out.data, measures: measures(p), createdAt: new Date().toISOString() };
     await store.update(session, (s) => { s.profile = { round, result: out.data, createdAt: p.profile.createdAt }; });
     log.write('server.personal.profile', { latencyMs: out.latencyMs, model: out.model, usage: out.usage, measures: p.profile.measures, profile: out.data });

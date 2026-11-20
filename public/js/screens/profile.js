@@ -1,5 +1,5 @@
-// Profile (personalize): after the questionnaire, the participant sees one high-level preference per
-// decision they made, as a plain list (scaffold/prompts/profile.md, one small-model call).
+// Profile (personalize): after the questionnaire, the participant sees three to six high-level
+// preferences as topic and value (scaffold/prompts/profile.md, one small-model call).
 import { h, clear, messageStrip } from '../core/dom.js';
 import { t } from '../core/strings.js';
 import { api } from '../core/api.js';
@@ -29,7 +29,7 @@ export default function create() {
           if (gone) return;
           if (res.profile) {
             const prefs = res.profile.preferences ?? [];
-            clear(body).append(h('dl.pf-params', prefs.flatMap((x) => [h('dt', x.decision), h('dd', x.preference)])));
+            clear(body).append(h('dl.pf-params', prefs.flatMap((x) => [h('dt', x.topic), h('dd', x.preference)])));
             logEvent('profile.shown', { preferences: prefs.length });
             return;
           }

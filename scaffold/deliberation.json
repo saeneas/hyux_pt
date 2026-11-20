@@ -1,13 +1,14 @@
 {
-  "_about": "Conditions of the deliberation step (before the comparisons). The dev drawer chooses one per session; config.personal.deliberation.condition is the default. open: one instruction, nothing else. static: fixed questions, the next one shown after each recording and every intervalSeconds of silence. adaptive: after each recording a model writes the next question from what was said (prompts/deliberation-adaptive.md). Prompts ask about the process, never suggest content.",
+  "_about": "Conditions of the thinking step. label and description are shown in the dev drawer; intro is what the participant reads. open: no questions. static: fixed questions in order. adaptive: a question written from what was said (prompts/deliberation-adaptive.md).",
   "conditions": {
     "open": {
-      "label": "Open think-aloud",
+      "label": "Open: no questions",
       "intro": "Before anything is written, think the task through aloud. Say everything that comes to mind: what you want to achieve, who you are writing to, what you would say and how. There are no wrong answers.",
-      "prompts": []
+      "prompts": [],
+      "description": "The participant thinks aloud with no help. Only the instruction at the start, nothing appears while they talk."
     },
     "static": {
-      "label": "Static metacognitive prompts",
+      "label": "Static: fixed questions",
       "intro": "Before anything is written, think the task through aloud. Questions will appear to help you; answer the ones that are useful.",
       "intervalSeconds": 35,
       "prompts": [
@@ -18,13 +19,15 @@
         "What could make the readers say no?",
         "How should the text feel to the readers?",
         "What have you not thought about yet?"
-      ]
+      ],
+      "description": "The same questions for everyone, in the same order. The next one appears after each recording or after 35 seconds of silence."
     },
     "adaptive": {
-      "label": "Adaptive prompts",
+      "label": "Adaptive: questions from what was said",
       "intro": "Before anything is written, think the task through aloud. After each recording you get a question that builds on what you said.",
       "first": "What do you want to achieve with this, and how would you go about it?",
-      "prompts": []
+      "prompts": [],
+      "description": "After each recording a small model writes one new question that builds on what the participant just said. Questions ask about their thinking, never suggest content."
     }
   }
 }

@@ -46,7 +46,7 @@ export function devRoutes(app) {
   // personalize: the deliberation conditions, the session's condition, and everything about a round.
   r.get('/conditions', async (req, res) => {
     const all = await scaffold.conditions();
-    res.json({ conditions: Object.entries(all).map(([key, c]) => ({ key, label: c.label })), default: config.personal.deliberation.condition });
+    res.json({ conditions: Object.entries(all).map(([key, c]) => ({ key, label: c.label, description: c.description ?? '' })), default: config.personal.deliberation.condition });
   });
   r.put('/condition', requireSession(store), async (req, res) => {
     const all = await scaffold.conditions();

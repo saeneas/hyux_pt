@@ -31,6 +31,39 @@ export function initDevPanel(ctx) {
   const sessionInfo = h('div.dd-meta');
   const nameSel = select('Participant', names.map((n) => [n, n]), prefs.name ?? names[0], (v) => { prefs.name = v; savePrefs(prefs); });
   const condSel = h('select.dd-select', { 'aria-label': 'Deliberation condition' });
+  const condDesc = h('p.dd-desc');
+  const describeCondition = () => { condDesc.textContent = conditions.find((c) => c.key === condSel.value)?.description ?? ''; };
+
+  // ----- display of the cards -----
+  // Per browser; the default is personal.display in config.js.
+  const HIGHLIGHT = {
+    sentences: ['Sentences', 'Marks the sentences that differ between A and B in bright blue, and what changed since the last choice in a greyer blue.'],
+    paragraphs: ['Paragraphs', 'Marks whole paragraphs: those that differ get a blue bar, those that are the same in both are dimmed.'],
+    off: ['Off', 'No highlighting. The two versions are shown as plain text.'],
+  };
+  const ANNOTATE = {
+    labels: ['Labels', 'A faint heading above each paragraph says what it is (for example Opening, Licences, Ask).'],
+    blocks: ['Blocks', 'Each paragraph sits in a soft box with its heading, so the parts of the text stand apart.'],
+    off: ['Off', 'No headings or boxes.'],
+  };
+  ctx.dev.display = { ...(config.personal?.display ?? {}), ...(prefs.display ?? {}) };
+  const descLine = () => h('p.dd-desc');
+  const highlightDesc = descLine();
+  const annotateDesc = descLine();
+  const setDisplay = (key, value) => {
+    prefs.display = { ...(prefs.display ?? {}), [key]: value };
+    savePrefs(prefs);
+    ctx.dev.display = { ...(config.personal?.display ?? {}), ...prefs.display };
+    describeDisplay();
+    ctx.dev.onDisplay?.();
+  };
+  const highlightSel = select('Highlighting', Object.entries(HIGHLIGHT).map(([k, [l]]) => [k, l]), ctx.dev.display.highlight, (v) => setDisplay('highlight', v));
+  const annotateSel = select('Orientation', Object.entries(ANNOTATE).map(([k, [l]]) => [k, l]), ctx.dev.display.annotate, (v) => setDisplay('annotate', v));
+  function describeDisplay() {
+    highlightDesc.textContent = HIGHLIGHT[ctx.dev.display.highlight]?.[1] ?? '';
+    annotateDesc.textContent = ANNOTATE[ctx.dev.display.annotate]?.[1] ?? '';
+  }
+  describeDisplay();
   async function newSession() {
     const data = await api.dev.startSession(nameSel.value || prefs.name, condSel.value || undefined);
     session.set(data);
@@ -39,6 +72,7 @@ export function initDevPanel(ctx) {
     refreshInspect();
   }
   condSel.addEventListener('change', async () => {
+    describeCondition();
     prefs.condition = condSel.value;
     savePrefs(prefs);
     if (!session.active) return;
@@ -114,7 +148,7 @@ export function initDevPanel(ctx) {
     } else if (prefs.tab === 'profile') {
       const pr = rd.profile;
       if (!pr) return view.append(h('p.dd-meta', 'No profile yet (it starts when a version is used, at the latest with the questionnaire).'));
-      view.append(h('h4.dd-h', 'Preferences'), h('ul.dd-list', (pr.result?.preferences ?? []).map((x) => h('li', `${x.decision}: ${x.preference}`))),
+      view.append(h('h4.dd-h', 'Preferences'), h('ul.dd-list', (pr.result?.preferences ?? []).map((x) => h('li', `${x.topic}: ${x.preference}`))),
         h('h4.dd-h', 'Measures'), json(pr.measures));
     }
   }
@@ -130,7 +164,10 @@ export function initDevPanel(ctx) {
   const drawer = h('aside.dd', { 'aria-label': 'Dev drawer' },
     h('header.dd-head', h('span.dd-title', 'Prototype controls'), btn('Close', () => setOpen(false), '.dd-btn--ghost')),
     h('div.dd-scroll',
-      section('Session', sessionInfo, h('div.dd-row', nameSel, condSel), h('div.dd-row', btn('Start new session', newSession, '.dd-btn--primary'))),
+      section('Session', sessionInfo, h('div.dd-row', nameSel), h('div.dd-row', btn('Start new session', newSession, '.dd-btn--primary'))),
+      section('Thinking step: questions', h('div.dd-row', condSel), condDesc),
+      section('Cards: highlighting', h('div.dd-row', highlightSel), highlightDesc),
+      section('Cards: orientation', h('div.dd-row', annotateSel), annotateDesc),
       section('Go to step', stepList),
       section('This task', h('div.dd-row', btn('End thinking now', endThinking), btn('Reset task', resetRound, '.dd-btn--ghost'), btn('Download session file', () => api.personal.download().catch((e) => alert(`Download failed: ${e.code ?? e.message}`)), '.dd-btn--ghost')),
         h('div.dd-row', h('span.dd-meta', 'Timer speed'), speedSel)),
@@ -157,6 +194,7 @@ export function initDevPanel(ctx) {
     conditions = res.conditions;
     clear(condSel).append(...conditions.map((c) => h('option', { value: c.key }, c.label)));
     condSel.value = session.data?.dev?.condition ?? prefs.condition ?? res.default;
+    describeCondition();
   }).catch(() => {});
 
   render();

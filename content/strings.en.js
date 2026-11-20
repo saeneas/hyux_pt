@@ -287,6 +287,7 @@ export default {
     neither: 'Neither Fits',
     accept: 'Use This Version',
     acceptedHeadline: 'Your Text',
+    moved: 'moved', // next to the label of a paragraph that sits elsewhere in the other version
     planFailed: 'The first versions could not be written.',
     stepFailed: 'The next versions could not be written.',
     acceptFailed: 'Your choice could not be saved. Try again.',

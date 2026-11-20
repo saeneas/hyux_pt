@@ -102,6 +102,8 @@ export function validateConfig(config, { tasks, modes, hasApiKey, devMode }) {
   num('personal.secondsPerComparison', { min: 15, max: 300, int: true });
   num('personal.timeoutSeconds', { min: 10, max: 600 });
   bool('personal.offerExport');
+  oneOf('personal.display.highlight', ['sentences', 'paragraphs', 'off']);
+  oneOf('personal.display.annotate', ['labels', 'blocks', 'off']);
   if (get('logging.modelCalls') !== undefined) bool('logging.modelCalls');
   for (const call of ['adaptive', 'step', 'profile']) {
     str(`personal.calls.${call}.model`);
