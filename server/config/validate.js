@@ -102,7 +102,8 @@ export function validateConfig(config, { tasks, modes, hasApiKey, devMode }) {
   num('personal.secondsPerComparison', { min: 15, max: 300, int: true });
   num('personal.timeoutSeconds', { min: 10, max: 600 });
   bool('personal.offerExport');
-  for (const call of ['adaptive', 'planner', 'step', 'evidence', 'profile']) {
+  if (get('logging.modelCalls') !== undefined) bool('logging.modelCalls');
+  for (const call of ['adaptive', 'step', 'evidence', 'profile']) {
     str(`personal.calls.${call}.model`);
     if (get(`personal.calls.${call}.reasoningEffort`) !== null) oneOf(`personal.calls.${call}.reasoningEffort`, ['none', 'low', 'medium', 'high', 'xhigh', 'max']);
     num(`personal.calls.${call}.maxOutputTokens`, { min: 64, max: 64000, int: true });
@@ -161,6 +162,8 @@ export function validateTasks(tasks) {
     for (const f of ['id', 'title', 'situation', 'task']) if (typeof t?.[f] !== 'string' || !t[f].trim()) errors.push(`${p}: '${f}' must be non-empty text`);
     if (typeof t?.briefing !== 'string') errors.push(`${p}: 'briefing' must be text (may be empty)`);
     if (t?.scaffold !== undefined && typeof t.scaffold !== 'string') errors.push(`${p}: 'scaffold' must be text (may be empty)`);
+    if (t?.deliverable !== undefined && typeof t.deliverable !== 'string') errors.push(`${p}: 'deliverable' must be text`);
+    if (t?.form !== undefined && !['email', 'document'].includes(t.form)) errors.push(`${p}: 'form' must be 'email' or 'document'`);
     if (typeof t?.timeLimitMinutes !== 'number' || t.timeLimitMinutes <= 0) errors.push(`${p}: 'timeLimitMinutes' must be a positive number`);
     if (t?.materials !== undefined) {
       if (!Array.isArray(t.materials)) errors.push(`${p}: 'materials' must be a list`);

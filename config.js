@@ -31,10 +31,10 @@ export default {
     post: ['end'],
     // Optional screens. A screen set to false is skipped.
     enabled: { tutorial: false, survey: true, interview: false },
-    rounds: 3, // N
+    rounds: 2, // N
     taskSelection: {
       mode: 'fixed', // 'fixed' | 'random' | 'perParticipant'
-      order: ['task-01', 'task-02', 'task-03'], // used by 'fixed'; 'random' shuffles this list per participant
+      order: ['task-01', 'task-02'], // used by 'fixed'; 'random' shuffles this list per participant
       // used by 'perParticipant'; IDs not listed here fall back to 'order'
       perParticipant: {
         // P01: ['task-02', 'task-01', 'task-03'],
@@ -56,7 +56,7 @@ export default {
     //   'personal': guided comparisons planned from the deliberation (branch personalize; see scaffold/).
     mode: 'personal',
     recordingMode: 'pushToTalk', // 'pushToTalk' (hold button or Space) | 'toggle' (click to start, click to stop)
-    maxRecordingSeconds: 60,
+    maxRecordingSeconds: 180, // thinking aloud runs long; a recording stops by itself after this
   },
 
   tutorial: {
@@ -163,15 +163,14 @@ export default {
     },
     // Time budget of the comparisons: the task's timeLimitMinutes, divided by about this many seconds per
     // pair, tells the planner and each step how many pairs are left.
-    secondsPerComparison: 50,
+    secondsPerComparison: 45,
     // Model and reasoning effort per call. Routing calls run on a small model; planning and the profile
     // on the large one.
     calls: {
-      adaptive: { model: 'gpt-6.1-terra', reasoningEffort: 'low', maxOutputTokens: 400 },
-      planner: { model: 'gpt-6.2-sol', reasoningEffort: 'medium', maxOutputTokens: 6000 },
-      step: { model: 'gpt-6.2-sol', reasoningEffort: 'low', maxOutputTokens: 5000 },
-      evidence: { model: 'gpt-6.1-terra', reasoningEffort: 'low', maxOutputTokens: 5000 },
-      profile: { model: 'gpt-6.2-sol', reasoningEffort: 'high', maxOutputTokens: 8000 },
+      adaptive: { model: 'gpt-6-luna', reasoningEffort: 'none', maxOutputTokens: 300 },
+      step: { model: 'gpt-6-luna', reasoningEffort: 'none', maxOutputTokens: 4000 }, // the first pair and every next one (about 5 s)
+      evidence: { model: 'gpt-6-luna', reasoningEffort: 'none', maxOutputTokens: 3000 },
+      profile: { model: 'gpt-6.2-sol', reasoningEffort: 'low', maxOutputTokens: 5000 },
     },
     timeoutSeconds: 120, // per call; the participant sees progress meanwhile
     // The end screen offers the session as a file (what was said and chosen, plans, cards, profiles), for
@@ -182,8 +181,9 @@ export default {
   stt: {
     model: 'gpt-transcribe',
     languages: ['en'], // gpt-transcribe takes a list of expected languages
-    prompt: '', // optional vocabulary hint for the transcription model
-    timeoutSeconds: 30,
+    // Vocabulary hint for the transcription model: the words of the scenario.
+    prompt: 'A sales rep thinks aloud about a sales task: a renewal email to the CFO of a hospital network (licences, scheduling platform, nurses, retention, overtime) or an idea for a supermarket chain (checkout, inventory, self checkout, fresh produce, waste, discount stores, staff representatives, finance director).',
+    timeoutSeconds: 60, // long recordings of the deliberation
   },
 
   systemCheck: {
@@ -208,9 +208,12 @@ export default {
     },
   },
 
+  // Everything is written to logs/ (one file per participant, logs/<id>.jsonl), which git ignores, like
+  // sessions/. Never commit either: they hold what participants said.
   logging: {
     dir: 'logs',
-    storeAudio: false, // true stores each uploaded recording next to the log
+    storeAudio: true, // stores each uploaded recording in logs/audio/<participant>/ (test sessions)
+    modelCalls: true, // logs every model call of the personalize mode in full: prompt file, input, answer
   },
 
   // Only used when DEV_MODE=true in .env. Ignored otherwise.

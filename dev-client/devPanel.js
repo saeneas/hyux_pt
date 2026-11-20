@@ -99,28 +99,24 @@ export function initDevPanel(ctx) {
     if (prefs.tab === 'events') return view.append(events);
     if (!rd) return view.append(h('p.dd-meta', 'Nothing for this task yet.'));
     if (prefs.tab === 'plan') {
-      const pl = rd.plan;
       view.append(kv('Condition', rd.condition), kv('Job', rd.job ? `${rd.job.kind}${rd.job.error ? ` (failed: ${rd.job.error})` : ' …'}` : 'idle'));
-      if (!pl) return view.append(h('p.dd-meta', 'No plan yet.'));
+      if (!rd.plan) return view.append(h('p.dd-meta', 'Nothing yet: the first pair comes when the thinking step ends.'));
       view.append(
-        kv('Strategy', `${pl.strategy?.leading}${pl.strategy?.second ? ` / ${pl.strategy.second}` : ''} · ${Math.round((pl.strategy?.confidence ?? 0) * 100)} %${pl.strategy?.named ? ' · named by the participant' : ''}`),
-        h('ul.dd-list', (pl.strategy?.evidence ?? []).map((e) => h('li', e))),
-        h('h4.dd-h', 'Preferences'), h('ul.dd-list', (pl.preferences ?? []).map((p) => h('li', `${p.statement} — “${p.quote}”`))),
-        h('h4.dd-h', 'Decisions'), h('ul.dd-list', (pl.decisions ?? []).map((d) => h(`li.dd-dec.is-${d.status}`, `${d.decision}: ${d.status}${d.contingency ? ' · contingency' : ''}${d.value ? ` → ${d.value}` : ''}`))),
-        h('h4.dd-h', 'Reasoning'), h('p.dd-text', pl.reasoning ?? ''),
-        h('h4.dd-h', 'Message to the participant'), h('p.dd-text', pl.message ?? ''));
+        kv('Approach', rd.approach ?? rd.plan.approach),
+        h('h4.dd-h', 'Brief (what the participant wants)'), h('ul.dd-list', (rd.brief ?? []).map((x) => h('li', x))),
+        h('h4.dd-h', 'Settled'), h('ul.dd-list', (rd.settled ?? []).map((x) => h('li', x))),
+        h('h4.dd-h', 'Open, general first'), h('ol.dd-list', (rd.open ?? []).map((x) => h('li', x))),
+        h('h4.dd-h', 'Open at the start'), h('ol.dd-list', (rd.plan.open ?? []).map((x) => h('li', x))));
     } else if (prefs.tab === 'path') {
-      view.append(h('h4.dd-h', 'Stages'), h('ul.dd-list', (rd.stages ?? []).map((s) => h(`li.dd-stage.is-${s.status}`, `${s.title} · ${s.status}${Number.isFinite(s.clarity) ? ` · clarity ${Math.round(s.clarity * 100)} %` : ''} — ${s.goal}`))));
-      view.append(h('h4.dd-h', 'Comparisons'), h('ol.dd-list', (rd.comparisons ?? []).map((c) => h('li',
-        h('b', `${c.mode}${c.action === 'final' ? ' · final' : ''} · understanding ${Math.round((c.understanding ?? 0) * 100)} %`), h('br'),
-        `A: ${c.lenses[0]} | B: ${c.lenses[1]}`, h('br'),
-        h('span.dd-meta', c.reasoning ?? ''),
+      view.append(h('h4.dd-h', 'Pairs'), h('ol.dd-list', (rd.comparisons ?? []).map((c) => h('li',
+        h('b', `${c.aspect} · ${c.mode}${c.final ? ' · final' : ''}`), h('br'),
+        `A: ${c.lenses[0]} | B: ${c.lenses[1]}`,
         c.response ? h('div.dd-resp', `→ ${c.response.action}${c.response.cardId ? ` ${c.response.cardId.slice(-1).toUpperCase()}` : ''}${c.response.note ? `: “${c.response.note}”` : ''}`) : null))));
-      if (rd.known) view.append(h('h4.dd-h', 'What the system knows'), json(rd.known));
     } else if (prefs.tab === 'profile') {
       const pr = rd.profile;
-      if (!pr) return view.append(h('p.dd-meta', 'No profile yet (it starts when a final text is chosen, at the latest with the questionnaire).'));
-      view.append(h('h4.dd-h', 'Measures'), json(pr.measures), h('h4.dd-h', 'Profile'), json(pr.result), h('h4.dd-h', `Observations (${pr.evidence?.length ?? 0})`), json(pr.evidence));
+      if (!pr) return view.append(h('p.dd-meta', 'No profile yet (it starts when a version is used, at the latest with the questionnaire).'));
+      view.append(h('h4.dd-h', 'Parameters'), h('ul.dd-list', (pr.result?.parameters ?? []).map((x) => h('li', `${x.name}: ${x.value} (${Math.round((x.confidence ?? 0) * 100)} %)`))),
+        h('h4.dd-h', 'Measures'), json(pr.measures), h('h4.dd-h', `Observations (${pr.evidence?.length ?? 0})`), json(pr.evidence));
     }
   }
   async function refreshInspect() {

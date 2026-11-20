@@ -11,19 +11,19 @@
       "intro": "Before anything is written, think the task through aloud. Questions will appear to help you; answer the ones that are useful.",
       "intervalSeconds": 35,
       "prompts": [
-        "What do you want this email to achieve?",
-        "Who is the reader, and what matters to them right now?",
-        "How would you usually approach an email like this?",
+        "What do you want to achieve with this text?",
+        "Who will read it, and what matters to them right now?",
+        "How would you usually approach a task like this?",
         "Which points would you make, and which one matters most?",
-        "What could make the reader say no?",
-        "How should the email feel to the reader?",
+        "What could make the readers say no?",
+        "How should the text feel to the readers?",
         "What have you not thought about yet?"
       ]
     },
     "adaptive": {
       "label": "Adaptive prompts",
       "intro": "Before anything is written, think the task through aloud. After each recording you get a question that builds on what you said.",
-      "first": "What do you want this email to achieve, and how would you go about it?",
+      "first": "What do you want to achieve with this, and how would you go about it?",
       "prompts": []
     }
   }

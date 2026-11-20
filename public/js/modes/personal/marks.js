@@ -1,40 +1,36 @@
-// Highlights on a card: what the current choice is about (focus, bright blue) and what carries the
-// writer's earlier choices (carried, muted blue). The step marks both as phrases copied from the card's
-// text (scaffold/prompts/step.md). A phrase is found exactly, else with any white space and case; one that
-// is not found is left out. When no focus phrase is found on a full version, the words that differ from
-// the other card stand in for it.
+// Highlights on a card, computed from the texts, sentence by sentence: bright blue for the sentences of
+// this version that the other one does not have (what the choice is about), a greyer blue for those the
+// version chosen last did not have (what the last choice changed). Bright wins where both apply. A
+// layer that would cover most of the text tells nothing (the version was rewritten) and is left out.
 import { h } from '../../core/dom.js';
-import { changedRanges } from '../compare/diff.js';
 
-const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-function locate(text, phrase) {
-  const i = text.indexOf(phrase);
-  if (i >= 0) return [i, i + phrase.length];
-  const words = phrase.trim().split(/\s+/).filter(Boolean).map(escape);
-  if (!words.length) return null;
-  const m = new RegExp(words.join('\\s+'), 'iu').exec(text);
-  return m ? [m.index, m.index + m[0].length] : null;
-}
-
-// Each character of the text: 0 plain, 1 carried, 2 focus (focus wins where both apply).
-export function markLevels(card, other) {
-  const text = card.text;
-  const level = new Uint8Array(text.length);
-  const paint = (range, v) => { if (range) for (let i = range[0]; i < range[1]; i++) level[i] = Math.max(level[i], v); };
-  for (const p of card.carried ?? []) paint(locate(text, p), 1);
-  let focusFound = false;
-  for (const p of card.focus ?? []) { const r = locate(text, p); if (r) focusFound = true; paint(r, 2); }
-  if (!focusFound && card.kind === 'full' && other?.text) {
-    for (const r of changedRanges(other.text, text)) paint([r.start, r.end], 2);
+// Sentences with their place in the text; the line structure (greeting, paragraphs) stays outside them.
+function sentences(text) {
+  const out = [];
+  const re = /[^.!?\n]+(?:[.!?]+["”’)]?|(?=\n)|$)/g;
+  for (let m = re.exec(text); m; m = re.exec(text)) {
+    if (!m[0].trim()) { if (re.lastIndex === m.index) re.lastIndex++; continue; }
+    const lead = m[0].length - m[0].trimStart().length;
+    out.push({ start: m.index + lead, end: m.index + m[0].trimEnd().length });
   }
-  return level;
+  return out;
+}
+const norm = (s) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
+function differing(text, against) {
+  const known = new Set(sentences(against).map((s) => norm(against.slice(s.start, s.end))));
+  return sentences(text).filter((s) => !known.has(norm(text.slice(s.start, s.end))));
 }
 
-// The text as nodes: plain runs and <mark> runs.
-export function renderMarked(card, other) {
-  const text = card.text;
-  const level = markLevels(card, other);
+export function renderMarked(text, other, previous) {
+  const level = new Uint8Array(text.length);
+  const paint = (ranges, v) => {
+    const covered = ranges.reduce((n, r) => n + r.end - r.start, 0);
+    if (!ranges.length || covered > text.replace(/\s/g, '').length * 0.7) return;
+    for (const r of ranges) for (let i = r.start; i < r.end; i++) level[i] = Math.max(level[i], v);
+  };
+  if (previous && previous !== text) paint(differing(text, previous), 1);
+  if (other) paint(differing(text, other), 2);
   const nodes = [];
   let start = 0;
   for (let i = 1; i <= text.length; i++) {
@@ -43,5 +39,5 @@ export function renderMarked(card, other) {
     nodes.push(level[start] === 2 ? h('mark.ps-mark.ps-mark--now', part) : level[start] === 1 ? h('mark.ps-mark.ps-mark--before', part) : part);
     start = i;
   }
-  return { nodes, hasNow: level.includes(2), hasBefore: level.includes(1) };
+  return nodes;
 }

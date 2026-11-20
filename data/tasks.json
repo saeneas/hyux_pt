@@ -6,23 +6,18 @@
     "task": "Write a compelling renewal proposal to the CFO arguing why the hospital network should renew. Make the case for how the platform supports staff wellbeing, improves scheduling efficiency, helps retain nurses and, in the end, contributes to better patient care.",
     "scaffold": "Dear [CFO Name],\n\nThank you for your message about the network’s review of software contracts. This letter sets out our proposal for renewing your workforce scheduling platform agreement.\n\nYour current agreement covers 1,200 licences. We propose renewing the same 1,200 licences for 12-month. The renewal includes platform access, standard support, software updates and hosting.\n\nWe are happy to provide any further information your review needs, including usage reports. Please let us know a convenient time to discuss the renewal.\n\nKind regards,",
     "briefing": "",
-    "timeLimitMinutes": 8
+    "timeLimitMinutes": 8,
+    "deliverable": "An email to the CFO",
+    "form": "email"
   },
   {
     "id": "task-02",
-    "title": "Renew at Full Price, Yes or No?",
-    "situation": "You are a Senior Account Executive at a software company that sells a workforce scheduling platform. Your largest customer, a regional hospital network, has just announced a review of every software contract it holds.\n\nHospitals face rising costs and staff shortages, so the network’s new CFO has asked every vendor to justify its spend before renewal. Your contract covers 1,200 licences and renews in four weeks. Usage data shows that nursing teams rely on the platform every day, while the administrative departments use about a third of their licences. A competitor has offered the network a similar product at a lower price. Your sales director expects the renewal to close at full value, because the quarterly target depends on it.",
-    "task": "Write a compelling renewal proposal to the CFO arguing why the hospital network should renew. Make the case for how the platform supports staff wellbeing, improves scheduling efficiency, helps retain nurses and, in the end, contributes to better patient care.",
-    "scaffold": "Dear [CFO Name],\n\nThank you for your message about the network’s review of software contracts. This letter sets out our proposal for renewing your workforce scheduling platform agreement.\n\nYour current agreement covers 1,200 licences. We propose renewing the same 1,200 licences for 12-month. The renewal includes platform access, standard support, software updates and hosting.\n\nWe are happy to provide any further information your review needs, including usage reports. Please let us know a convenient time to discuss the renewal.\n\nKind regards,",
-    "briefing": "",
-    "timeLimitMinutes": 8
-  },
-  {
-    "id": "task-03",
-    "title": "Renew at Full Price, Yes or No?",
-    "situation": "You are a Senior Account Executive at a software company that sells a workforce scheduling platform. Your largest customer, a regional hospital network, has just announced a review of every software contract it holds.\n\nHospitals face rising costs and staff shortages, so the network’s new CFO has asked every vendor to justify its spend before renewal. Your contract covers 1,200 licences and renews in four weeks. Usage data shows that nursing teams rely on the platform every day, while the administrative departments use about a third of their licences. A competitor has offered the network a similar product at a lower price. Your sales director expects the renewal to close at full value, because the quarterly target depends on it.",
-    "task": "Write a compelling renewal proposal to the CFO arguing why the hospital network should renew. Make the case for how the platform supports staff wellbeing, improves scheduling efficiency, helps retain nurses and, in the end, contributes to better patient care.",
-    "scaffold": "Dear [CFO Name],\n\nThank you for your message about the network’s review of software contracts. This letter sets out our proposal for renewing your workforce scheduling platform agreement.\n\nYour current agreement covers 1,200 licences. We propose renewing the same 1,200 licences for 12-month. The renewal includes platform access, standard support, software updates and hosting.\n\nWe are happy to provide any further information your review needs, including usage reports. Please let us know a convenient time to discuss the renewal.\n\nKind regards,",
+    "title": "An Idea for the Supermarket",
+    "situation": "You are a Senior Account Executive at a company that sells checkout and inventory systems to retailers. A regional supermarket chain has invited you and two competitors to bring an idea to its management team.\n\nThe client\n• 80 stores, from large supermarkets on the edge of town to small shops in town centres and villages\n• Losing customers to discount stores as food prices rise\n• Fresh produce often goes to waste in the smaller shops\n• Many older customers come in every day\n• Tested self checkout in two stores five years ago and removed it after a year\n\nThe decision\nThe CEO decides together with the finance director. They state that every investment has to pay for itself. Staff representatives must be consulted before any change to store jobs. At the end of the first meeting, the CEO said: “Everyone sells us the same machines. Show us something we have not thought of.”\n\nYour offer can cover any of your products, any number of stores, any price and any timeline.",
+    "task": "Develop the idea you will bring to the next meeting. Describe what you would offer the chain and why you believe it works.\n\nYour offer will shape the client relationship, the working days of several thousand store employees and the shopping routines of the communities they serve.",
+    "deliverable": "A short written proposal for the management team: the idea, what you would offer and why you believe it works",
+    "form": "document",
+    "scaffold": "",
     "briefing": "",
     "timeLimitMinutes": 8
   }

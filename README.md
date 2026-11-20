@@ -15,12 +15,16 @@ Built on `compare`. Metacognitive scaffolding, voice and personalization in one 
 1. **Welcome:** the participant picks their name (`participants.pickList`).
 2. **Briefing:** the task and the time.
 3. **Think It Through** (`screens/deliberate.js`, about 3 minutes): the participant thinks aloud next to an empty email skeleton. The condition (open, static or adaptive prompts, `scaffold/deliberation.json`) is set per session in the dev drawer.
-4. **Task** (`modes/personal`, 8 minutes): a planner reads the deliberation and plans the path. Then pairs of cards, each with a question, a mode (built on what you said, two directions, something you may not have considered) and highlights of what the choice is about. The participant chooses (or Neither Fits) and says why; the path adapts after every answer. The task time starts when the first pair is on screen.
-5. **Questionnaire**, then **Your Profile** (`screens/profile.js`): the strategy and traits the system inferred, with confidence and evidence.
+4. **Task** (`modes/personal`, 8 minutes): two whole versions at a time under a headline of a few words (the aspect, e.g. "Tone"), with highlights of where they differ and of what changed since the last choice. The participant chooses one (or Neither Fits), says why, and continues; each next pair takes about 6 s. The task time starts when the first pair is on screen.
+5. **Questionnaire**, then **Your Preferences** (`screens/profile.js`): five to eight preference parameters the system inferred, as name and value.
+
+Two tasks: the hospital renewal email and the supermarket idea (`data/tasks.json`; `form` decides whether the skeleton looks like an email or a document, `deliverable` tells the model what to write).
 
 All prompts and the strategy catalog are in [`scaffold/`](scaffold/README.md) and are read on every call. Models and effort per call are in `config.js` under `personal`; the server code is `server/routes/personal.js`.
 
-**Dev drawer** (tab at the right edge, `DEV_MODE=true`): start a session as one of the participants with a condition, jump to any step, end the thinking time, reset the task, download the session file, and look at the plan, the path and the profile while they are made.
+**Dev drawer** (tab at the right edge, `DEV_MODE=true`): start a session as one of the participants with a condition, jump to any step, end the thinking time, reset the task, download the session file, and look at the brief, the aspects, every pair and the profile while they are made.
+
+**Logs** stay out of git: `logs/<participant>.jsonl` holds every event and, with `logging.modelCalls`, every model call in full; `logging.storeAudio` keeps the recordings in `logs/audio/`; sessions are in `sessions/`.
 
 **Session files:** with `personal.offerExport` the end screen offers a download of the session. `node scripts/replay.mjs <file>` replays it against changed prompts.
 

@@ -7,8 +7,8 @@
 // same participant, sends the recorded transcripts of the deliberation as if they had just been spoken,
 // waits for the plan, and answers each pair with the recorded action, card letter and words. The new
 // cards differ from the recorded ones, so a letter now points at a new card: the words carry the
-// participant's intent, the letter only keeps the rhythm. When the recorded answers run out, the final
-// versions are requested and the recorded final letter (or A) is used. The profile is made at the end.
+// participant's intent, the letter only keeps the rhythm. When the recorded answers run out, the version
+// with the recorded final letter (or A) of the pair on screen is used. The profile is made at the end.
 // The result file holds the new plan, every pair and the profile next to what was recorded.
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -62,21 +62,16 @@ async function waitPair() {
 }
 await waitPair();
 const plan = (await call('GET', '/api/dev/inspect')).rounds[round].plan;
-log(`\nplan: ${plan.strategy.leading} / ${plan.strategy.second} (${plan.strategy.confidence}), stages: ${plan.stages.map((x) => x.title).join(' > ')}`);
+log(`\napproach: ${plan.approach}; open: ${(plan.open ?? []).join(' > ')}`);
 
 const pairs = [];
-const pairOf = () => ({ n: state.comparison.n, mode: state.comparison.mode, final: state.comparison.final, question: state.comparison.question, message: state.comparison.message, understanding: state.understanding, stages: state.stages, cards: state.comparison.cards });
-for (const r of rec.responses) {
+const pairOf = () => ({ n: state.comparison.n, aspect: state.comparison.aspect, final: state.comparison.final, cards: state.comparison.cards });
+for (const r of rec.responses.filter((x) => ['pick', 'neither'].includes(x.action))) {
   const c = state.comparison;
   pairs.push({ ...pairOf(), response: r });
-  log(`#${c.n} ${c.mode}${c.final ? ' final' : ''}: A ${c.cards[0].lens} | B ${c.cards[1].lens}\n  → ${r.action}${r.card ? ` ${r.card}` : ''}${r.note ? `: ${r.note}` : ''}`);
+  log(`#${c.n} ${c.aspect}${c.final ? ' (final)' : ''}: A ${c.cards[0].lens} | B ${c.cards[1].lens}\n  → ${r.action}${r.card ? ` ${r.card}` : ''}${r.note ? `: ${r.note}` : ''}`);
   const cardId = r.action === 'pick' ? c.cards[r.card === 'B' ? 1 : 0].id : undefined;
   await call('POST', '/api/personal/act', { round, action: r.action === 'pick' && !cardId ? 'neither' : r.action, cardId, note: r.note ?? '' });
-  await waitPair();
-}
-if (!state.comparison.final) {
-  pairs.push({ ...pairOf(), response: { action: 'final' } });
-  await call('POST', '/api/personal/act', { round, action: 'final', note: '' });
   await waitPair();
 }
 const finalCard = state.comparison.cards[rec.accepted === 'B' ? 1 : 0];
@@ -91,7 +86,7 @@ for (;;) {
   if (p.error) throw new Error(`The profile failed: ${p.error}`);
   if (p.profile) { profile = p.profile; break; }
 }
-log(`\nprofile: ${profile.summary}`);
+log(`\nparameters: ${(profile.parameters ?? []).map((x) => `${x.name}: ${x.value}`).join('; ')}`);
 
 writeFileSync(outFile, JSON.stringify({
   replayedAt: new Date().toISOString(), source: file, round: roundNo, seconds: Math.round((Date.now() - started) / 1000),

@@ -100,7 +100,10 @@ export function createOpenAiService({ config, env }) {
       const once = async (sig) => {
         const res = await need().responses.create(params, { signal: sig });
         let data;
-        try { data = JSON.parse(res.output_text ?? ''); } catch { throw new Error('The model did not return valid JSON'); }
+        try { data = JSON.parse(res.output_text ?? ''); } catch {
+          const why = res.status === 'incomplete' ? ` (incomplete: ${res.incomplete_details?.reason ?? 'unknown'})` : '';
+          throw new Error(`The model did not return valid JSON${why}`);
+        }
         return { data, usage: res.usage ?? null, model: params.model };
       };
       const after = (hedgeAfterSeconds ?? 0) * 1000;

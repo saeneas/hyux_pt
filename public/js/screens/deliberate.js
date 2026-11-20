@@ -55,11 +55,15 @@ export default function create() {
       const doneBtn = h('button.fh-btn.fh-btn--emphasized.pd-done', { type: 'button' }, icon('accept'), h('span', t('deliberate.done')));
       const doneHint = h('span.pd-done__hint');
       const bar = createTimerBar();
-      const skeleton = h('article.pd-skeleton', { 'aria-hidden': 'true' },
-        h('p.pd-skeleton__line', t('deliberate.greeting')),
-        ...SKELETON.map((para) => h('div.pd-skeleton__para', para.map((w) => h('span.pd-skeleton__bar', { style: `width:${w}%` })))),
-        h('p.pd-skeleton__line', t('deliberate.closing')),
-        h('span.pd-skeleton__bar.pd-skeleton__bar--short', { style: 'width:28%' }));
+      // An email: greeting and closing around grey lines. A document (task.form): a title and paragraphs.
+      const paras = SKELETON.map((para) => h('div.pd-skeleton__para', para.map((w) => h('span.pd-skeleton__bar', { style: `width:${w}%` }))));
+      const skeleton = task.form === 'document'
+        ? h('article.pd-skeleton.pd-skeleton--doc', { 'aria-hidden': 'true' }, h('span.pd-skeleton__bar.pd-skeleton__bar--title', { style: 'width:55%' }), ...paras, h('div.pd-skeleton__para', h('span.pd-skeleton__bar', { style: 'width:88%' }), h('span.pd-skeleton__bar', { style: 'width:46%' })))
+        : h('article.pd-skeleton', { 'aria-hidden': 'true' },
+          h('p.pd-skeleton__line', t('deliberate.greeting')),
+          ...paras,
+          h('p.pd-skeleton__line', t('deliberate.closing')),
+          h('span.pd-skeleton__bar.pd-skeleton__bar--short', { style: 'width:28%' }));
       const page = h('div.pd',
         sidebar.el,
         h('div.pd-main',
@@ -94,19 +98,37 @@ export default function create() {
         recStatus.textContent = transcribing ? t('deliberate.transcribing') : thinking ? t('deliberate.thinking') : ptt && !recording ? t('deliberate.recordHint') : '';
         if (!recording) meterFill.style.width = '0%';
         recBtn.setAttribute('aria-label', recLabel.textContent);
+        // The list and the notice are drawn again only when they change, so nothing on screen moves
+        // while the participant speaks.
         const items = (view?.items ?? []).filter((x) => x.kind === 'said');
-        clear(said).append(...(items.length ? items.map((x) => h('li.pd-said__item', x.text)) : [h('li.pd-said__empty', t('deliberate.empty'))]));
-        said.scrollTop = said.scrollHeight;
-        clear(notice);
-        if (error) notice.append(messageStrip('error', t('deliberate.sayFailed')), error.retry ? h('button.fh-btn', { type: 'button', onclick: () => { const r = error.retry; error = null; r(); } }, t('common.retry')) : '');
-        else if (items.length) notice.append(h('p.pd-hint', t('deliberate.moreTalk')));
-        const left = Math.ceil((cfg.minSeconds ?? 0) - elapsed());
-        doneBtn.disabled = finishing || left > 0 || recording || transcribing || thinking;
-        doneHint.textContent = left > 0 ? t('deliberate.doneWait', { seconds: left }) : '';
+        if (said.dataset.count !== String(items.length)) {
+          const added = items.length > Number(said.dataset.count || 0);
+          clear(said).append(...(items.length ? items.map((x, i) => h(`li.pd-said__item${added && i === items.length - 1 ? '.is-new' : ''}`, x.text)) : [h('li.pd-said__empty', t('deliberate.empty'))]));
+          said.dataset.count = String(items.length);
+          said.scrollTop = said.scrollHeight;
+        }
+        const noticeKey = error ? 'error' : items.length ? 'hint' : '';
+        if (notice.dataset.key !== noticeKey) {
+          clear(notice);
+          if (error) notice.append(messageStrip('error', t('deliberate.sayFailed')), error.retry ? h('button.fh-btn', { type: 'button', onclick: () => { const r = error.retry; error = null; r(); } }, t('common.retry')) : '');
+          else if (items.length) notice.append(h('p.pd-hint', t('deliberate.moreTalk')));
+          notice.dataset.key = noticeKey;
+        }
         if (input) {
           if (input.recording) recBtn.disabled = false;
           else input.setEnabled(!finishing && !transcribing);
         }
+        renderClock();
+      }
+
+      // Every second: only the time bar and the done button.
+      function renderClock() {
+        const e = elapsed();
+        bar.update({ elapsedMs: e * 1000, limitMs: cfg.seconds * 1000, phase: e >= cfg.seconds - 30 ? 'warning' : 'running' });
+        const left = Math.ceil((cfg.minSeconds ?? 0) - e);
+        doneBtn.disabled = finishing || left > 0 || recordingSeconds !== null || transcribing || thinking;
+        const hint = left > 0 ? t('deliberate.doneWait', { seconds: left }) : '';
+        if (doneHint.textContent !== hint) doneHint.textContent = hint;
       }
 
       // ----- what was said -----
@@ -169,12 +191,11 @@ export default function create() {
       if (gone) return;
       if (view.finishedAt) return ctx.flow.next();
       logEvent('deliberate.shown', { condition: view.condition, resumed: view.items.some((x) => x.kind === 'said') });
-      bar.update({ elapsedMs: elapsed() * 1000, limitMs: cfg.seconds * 1000, phase: 'running' });
       render();
 
       ticker = setInterval(async () => {
         const e = elapsed();
-        bar.update({ elapsedMs: e * 1000, limitMs: cfg.seconds * 1000, phase: e >= cfg.seconds - 30 ? 'warning' : 'running' });
+        if (!finishing) renderClock();
         if (e >= cfg.seconds && !finishing && recordingSeconds === null) finish('time');
         // Static condition: the next question after a silence.
         if (view?.condition === 'static' && view.intervalSeconds && recordingSeconds === null && !transcribing && !finishing
@@ -182,7 +203,6 @@ export default function create() {
           lastActivity = Date.now();
           try { view = await api.personal.tick(round); render(); } catch { /* next time */ }
         }
-        if (!finishing) render();
       }, 1000);
     },
 

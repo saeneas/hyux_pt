@@ -7,32 +7,32 @@ reads these files on every call, so a change takes effect at the next call witho
 |---|---|---|
 | `deliberation.json` | deliberation screen | the prompt conditions (open, static, adaptive), their intro text and fixed questions |
 | `prompts/deliberation-adaptive.md` | adaptive condition, after each recording | the next question while the participant thinks aloud |
-| `strategies.md` | planner, profile | the catalog of writing strategies and how to scaffold each |
-| `prompts/planner.md` | once, when the deliberation ends | the participant's strategy, the decisions the email needs, the stages of the path |
-| `prompts/step.md` | after every pick | what the system learned, whether to stay, advance, revise or finish, and the next pair of cards |
+| `prompts/first.md` | once, when the deliberation ends | the brief (what the participant wants), the approach, the aspects from general to specific, the first pair |
+| `prompts/step.md` | after every choice | the updated brief and aspects, and the next pair |
+| `strategies.md` | profile | the catalog of writing strategies |
 | `prompts/profile-evidence.md` | after the task | observations about the participant, each grounded in a quote or a measure |
-| `prompts/profile.md` | after the task | the strategic profile and facts shown on the profile screen |
+| `prompts/profile.md` | after the task | the preference parameters shown on the profile screen |
 
 Which model and reasoning effort each call uses, and the time budget, are in `config.js` under
 `personal`. The code that sends these prompts is `server/routes/personal.js`; the shape of every answer
-(its JSON schema) is defined there too.
+(its JSON schema) is defined there too. With `logging.modelCalls`, every call is logged in full (prompt
+file, input, answer, tokens, time) in `logs/<participant>.jsonl`, which git ignores.
 
 ## The pipeline
 
-1. **Deliberate** (about 3 minutes). The participant thinks aloud next to an empty email skeleton. The
-   condition decides which questions they see.
-2. **Plan**. `planner.md` reads the deliberation and writes the plan: preferences already stated, the
-   strategy (followed if the participant named one, inferred otherwise), the decisions the email needs
-   (settled, open, blind spots and contingencies) and two to five stages with an estimate of pairs each.
-3. **Compare** (7 to 8 minutes). After every pick `step.md` updates what is known, decides to stay,
-   advance, revise the plan or finish, and writes the next pair: "confirm" when the system is sure
-   (both cards start from what was said), "probe" when unsure (two different extremes, never the
-   opposite of something ruled out), "alert" for a contingency the participant has not considered.
-   The number of pairs per stage is open; the remaining time is part of every call. Each card marks
-   the phrases the choice is about (`focus`, bright blue on screen) and those that carry earlier
-   choices (`carried`, a greyer blue).
+1. **Deliberate** (about 3 minutes). The participant thinks aloud next to an empty skeleton of the text
+   (an email or a document, `form` in `data/tasks.json`). The condition decides which questions they see.
+2. **First pair** (`first.md`, about 6 s). One lean call on a small model reads the deliberation and
+   writes the brief, the approach, the open aspects (the core and the tone first, then arguments, weak
+   points, the ask, wording last) and two whole versions that differ on the first open aspect.
+3. **Each next pair** (`step.md`, about 6 s). The call gets only the task, the brief, the aspects, the
+   chosen version and the participant's latest words (no history). Their words win: a wish about a
+   detail or about the whole feel goes into the brief and into both new versions. The participant sees
+   only a headline of a few words (the aspect) and the two versions; the cards mark in bright blue where
+   they differ and in a greyer blue what changed since the version chosen last (computed from the texts).
 4. **Profile**. After the task, two passes: `profile-evidence.md` gathers grounded observations,
-   `profile.md` reasons over them (with the profile of earlier tasks) and calibrates confidence.
+   `profile.md` turns them into five to eight preference parameters, abstracted so they would help in
+   another situation.
 
 ## Testing a prompt change with real sessions
 

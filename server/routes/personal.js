@@ -7,7 +7,7 @@
 //               POST /deliberation/finish  { round, reason }  ends the step; planning starts in the background
 //   Compare     POST /state                { round }          the public state (polled while a job runs)
 //               POST /act                  { round, action, cardId?, note? }
-//                                          action: pick | neither | skip | final → the next pair (background)
+//                                          action: pick | neither → the next pair (background)
 //               POST /accept               { round, cardId }  the final text; the profile starts in the background
 //   Profile     POST /profile              { round }          the profile (starts it if needed)
 //   Export      GET  /export                                  the session as a file (config.personal.offerExport):
@@ -16,13 +16,15 @@
 //
 // Stored with the session (rounds[round].personal):
 //   { condition, deliberation: { startedAt, finishedAt, finishReason, items: [{ kind: 'prompt' | 'said', text,
-//     focus?, at }] }, plan, known, stages, comparisons: [{ n, stageId, action, mode, question, message, cards:
-//     [{ id, lens, why, kind, text }], understanding, reasoning, createdAt, response: { action, cardId, note,
-//     at } }], accepted: { cardId, text, at }, job: { kind, startedAt, error? }, profile: { status, evidence,
-//     result, measures, createdAt, error? } }
+//     focus?, at }] }, plan: { approach, open, brief } (as first made), brief, approach, settled, open,
+//     comparisons: [{ n, aspect, mode, question, final, cards: [{ id, lens, why, text }], brief, open,
+//     createdAt, shownAt, response: { action, cardId, note, at } }], accepted: { cardId, text, at },
+//     job: { kind, startedAt, error? }, profile: { evidence, result, measures, createdAt } }
 // session.profile holds the latest profile, which the profile call of the next task builds on.
-// The browser gets the public state only (stage titles, the pair, the message); the plan's reasoning, what
-// is known and the profile's evidence are logged and shown in the dev drawer.
+// The steps are lean on purpose: one small-model call per pair, with the task, the brief (the writer's
+// wishes so far), the aspects, the chosen version and the latest words. No history.
+// The browser gets the pair and its headline only; brief, aspects and approach are logged and shown in
+// the dev drawer.
 import { Router } from 'express';
 import { requireSession } from '../middleware/session.js';
 import { rateLimit } from '../middleware/rateLimit.js';
@@ -41,36 +43,23 @@ const arr = (items) => ({ type: 'array', items });
 const enm = (values) => ({ type: 'string', enum: values });
 
 const ADAPTIVE_SCHEMA = obj({ question: str, focus: str });
-const PLAN_SCHEMA = obj({
-  preferences: arr(obj({ statement: str, quote: str })),
-  strategy: obj({ leading: str, second: str, named: { type: 'boolean' }, confidence: num, evidence: arr(str) }),
-  decisions: arr(obj({ id: str, decision: str, status: enm(['settled', 'open', 'blind_spot']), value: str, contingency: { type: 'boolean' }, why: str })),
-  stages: arr(obj({ id: str, title: str, goal: str, decisions: arr(str), pairs: { type: 'integer' }, why: str })),
-  message: str,
-  reasoning: str,
-});
-const CARD = obj({ lens: str, why: str, kind: enm(['excerpt', 'full']), text: str, focus: arr(str), carried: arr(str) });
+// One answer shape for the first pair and every next one: the writer's wishes so far, the aspects
+// settled and still open (general first), the aspect of this pair and two whole versions.
+const CARD = obj({ lens: str, text: str });
 const STEP_SCHEMA = obj({
-  known: obj({ settled: arr(obj({ decision: str, value: str, quote: str })), ruledOut: arr(str), open: arr(str), considered: arr(str) }),
-  stages: arr(obj({ id: str, title: str, goal: str, status: enm(['done', 'current', 'next']), clarity: num })),
-  action: enm(['stay', 'advance', 'revise', 'final']),
+  brief: arr(str),
+  approach: str,
+  settled: arr(str),
+  open: arr(str),
+  aspect: str,
   mode: enm(['confirm', 'probe', 'alert']),
-  question: str,
-  message: str,
-  understanding: num,
-  reasoning: str,
+  final: { type: 'boolean' },
   cards: arr(CARD),
 });
 const EVIDENCE_SCHEMA = obj({
   observations: arr(obj({ kind: enm(['said', 'chose', 'behaviour']), what: str, quote: str, source: str, about: str })),
 });
-const PROFILE_SCHEMA = obj({
-  summary: str,
-  strategy: obj({ leading: str, second: str, statement: str, confidence: num }),
-  dimensions: arr(obj({ dimension: str, statement: str, confidence: num, evidence: arr(str), implication: str })),
-  facts: arr(obj({ statement: str, quote: str })),
-  unclear: arr(str),
-});
+const PROFILE_SCHEMA = obj({ parameters: arr(obj({ name: str, value: str, confidence: num })) });
 
 export function personalRoutes(app) {
   const { config, store, logger, ai, tasksById } = app;
@@ -97,20 +86,30 @@ export function personalRoutes(app) {
   }
   const save = (session, key, roundData) => store.update(session, (s) => { s.rounds[key] = roundData; });
 
-  // One structured call with the model and effort of its kind (config.personal.calls).
-  async function call(kind, instructions, content, schema) {
+  // One structured call with the model and effort of its kind (config.personal.calls). With
+  // logging.modelCalls every call is logged in full (prompt file, input, answer, tokens, time) to the
+  // session's log in logs/, which git ignores.
+  async function call(kind, promptName, content, schema, log) {
     const c = P.calls[kind];
+    const instructions = await scaffold.prompt(promptName);
     const started = Date.now();
-    const out = await ai.structured({
-      kind, instructions, input: [{ role: 'user', content }], schema,
-      model: c.model, reasoningEffort: c.reasoningEffort, maxOutputTokens: c.maxOutputTokens, hedgeAfterSeconds: 0,
-      signal: AbortSignal.timeout(P.timeoutSeconds * 1000),
-    });
-    return { ...out, latencyMs: Date.now() - started, model: c.model };
+    try {
+      const out = await ai.structured({
+        kind, instructions, input: [{ role: 'user', content }], schema,
+        model: c.model, reasoningEffort: c.reasoningEffort, maxOutputTokens: c.maxOutputTokens, hedgeAfterSeconds: 0,
+        signal: AbortSignal.timeout(P.timeoutSeconds * 1000),
+      });
+      const latencyMs = Date.now() - started;
+      if (config.logging.modelCalls) log?.write('server.personal.call', { kind, prompt: `${promptName}.md`, model: c.model, effort: c.reasoningEffort, latencyMs, usage: out.usage ?? null, input: content, output: out.data });
+      return { ...out, latencyMs, model: c.model };
+    } catch (e) {
+      if (config.logging.modelCalls) log?.write('server.personal.call', { kind, prompt: `${promptName}.md`, model: c.model, effort: c.reasoningEffort, latencyMs: Date.now() - started, input: content, error: e.message });
+      throw e;
+    }
   }
 
   // ----- what every call reads -----
-  const taskText = (task) => `Task:\n${task?.task ?? ''}\n\nSituation:\n${task?.situation ?? ''}\n\nStarting outline (generic, no choices made):\n${task?.scaffold ?? ''}`;
+  const taskText = (task) => `Task:\n${task?.task ?? ''}\n\nWhat to write: ${task?.deliverable || 'the text the task asks for'}.\n\nSituation (the only source of facts):\n${task?.situation ?? ''}`;
   const transcript = (p) => (p.deliberation?.items ?? []).map((x) => (x.kind === 'prompt' ? `[Question shown: ${x.text}]` : `Writer: ${x.text}`)).join('\n') || '(The writer said nothing.)';
   // Seconds left in the comparisons and how many pairs that allows.
   function budget(session, round, task) {
@@ -120,34 +119,33 @@ export function personalRoutes(app) {
     const secondsLeft = Math.max(0, Math.round(total - used));
     return { secondsLeft, pairsLeft: Math.max(0, Math.floor(secondsLeft / P.secondsPerComparison)) };
   }
+  // The whole path, for the profile only (the steps see the brief and the latest choice, no history).
   const history = (p) => p.comparisons.map((c) => {
     const resp = c.response;
-    const said = resp ? (resp.action === 'pick' ? `Picked ${resp.cardId === c.cards[0].id ? 'A' : 'B'}` : resp.action === 'neither' ? 'Neither fits' : resp.action === 'skip' ? 'Moved on (skip)' : 'Asked for the final versions') : 'Not answered yet';
-    return [
-      `Comparison ${c.n} (stage ${c.stageId}, mode ${c.mode}):`,
-      ...c.cards.map((card, i) => `  Card ${i ? 'B' : 'A'}: ${card.lens}. Why shown: ${card.why}\n  Text: ${card.text.replace(/\n+/g, ' / ')}`),
-      `  Writer: ${said}${resp?.note ? `. Their words: "${resp.note}"` : resp ? '. They said nothing.' : ''}`,
-    ].join('\n');
-  }).join('\n\n') || '(none yet)';
+    const said = resp ? (resp.action === 'pick' ? `Chose ${resp.cardId === c.cards[0].id ? 'A' : 'B'}` : 'Neither fits') : 'Not answered';
+    return `Comparison ${c.n} (aspect: ${c.aspect}): A "${c.cards[0].lens}" | B "${c.cards[1].lens}". ${said}${resp?.note ? `, saying: "${resp.note}"` : resp ? ', without words' : ''}.`;
+  }).join('\n') || '(none)';
 
   // ----- public state -----
+  // What the participant sees: the pair and its headline. The path (brief, aspects, approach) stays in
+  // the dev drawer. previous: the version chosen last, so the cards can mark what changed since.
   function publicState(p) {
     const current = p.comparisons.at(-1) ?? null;
+    const before = [...p.comparisons].reverse().find((c) => c !== current && c.response?.action === 'pick');
     return {
-      phase: p.accepted ? 'accepted' : current ? 'compare' : p.plan ? 'planning' : p.deliberation?.finishedAt ? 'planning' : 'deliberate',
+      phase: p.accepted ? 'accepted' : current ? 'compare' : p.deliberation?.finishedAt ? 'planning' : 'deliberate',
       busy: running(p.job) ? p.job.kind : null,
       error: p.job?.error ?? null,
-      stages: (p.stages ?? []).map((s) => ({ id: s.id, title: s.title, status: s.status, clarity: s.clarity ?? null })),
-      message: p.planMessage ?? '',
-      understanding: current?.understanding ?? null,
       comparison: current ? {
-        n: current.n, mode: current.mode, question: current.question, message: current.message, final: current.action === 'final',
-        cards: current.cards.map(({ id, lens, why, kind, text, focus, carried }) => ({ id, lens, why, kind, text, focus: focus ?? [], carried: carried ?? [] })), answered: Boolean(current.response),
+        n: current.n, aspect: current.aspect, final: Boolean(current.final),
+        cards: current.cards.map(({ id, lens, text }) => ({ id, lens, text })), answered: Boolean(current.response),
+        previous: before ? before.cards.find((c) => c.id === before.response.cardId)?.text ?? null : null,
       } : null,
       count: p.comparisons.length,
       accepted: p.accepted?.cardId ?? null,
     };
   }
+
 
   // ----- background jobs -----
   // Runs fn in the background; the state says busy until it ends. Errors are kept for the client to retry.
@@ -168,67 +166,55 @@ export function personalRoutes(app) {
     return true;
   }
 
-  // Plan: the deliberation → strategy, decisions, stages. Then the first pair.
-  async function runPlan(session, round, key, roundData, task) {
+  // The first pair, from the deliberation. Then each next pair from the brief, the chosen version and
+  // the writer's latest words. Both are one lean call (config.personal.calls.step).
+  async function runFirst(session, round, key, roundData, task) {
     const p = roundData.personal;
-    const log = logger.forSession(session, round);
     const b = budget(session, round, task);
     const content = [
       taskText(task),
-      `Writing strategies (catalog):\n${await scaffold.strategies()}`,
-      `What the writer said while deliberating (condition: ${p.condition}):\n${transcript(p)}`,
-      `Time budget for the comparisons: about ${Math.floor(b.secondsLeft / 60)} minutes, room for about ${b.pairsLeft} pairs in all.`,
+      `What the writer said while thinking the task through:\n${transcript(p)}`,
+      `Pairs available in all: about ${b.pairsLeft}.`,
     ].join('\n\n');
-    const out = await call('planner', await scaffold.prompt('planner'), content, PLAN_SCHEMA);
-    p.plan = { ...out.data, createdAt: new Date().toISOString() };
-    p.planMessage = clean(out.data.message);
-    p.stages = (out.data.stages ?? []).map((s, i) => ({ ...s, status: i === 0 ? 'current' : 'next', clarity: null }));
-    log.write('server.personal.planned', { latencyMs: out.latencyMs, model: out.model, usage: out.usage, plan: out.data });
-    await save(session, key, roundData);
-    await runStep(session, round, key, roundData, task, { action: 'start' });
+    await writePair(session, round, roundData, task, 'first', content, { action: 'start' }, b);
   }
-
-  // Step: what the writer did → what is known, where the path goes, the next pair.
   async function runStep(session, round, key, roundData, task, latest) {
     const p = roundData.personal;
-    const log = logger.forSession(session, round);
     const b = budget(session, round, task);
-    const plan = p.plan ?? {};
-    const latestText = latest.action === 'start' ? 'The comparisons begin now: design the first pair for the first stage.'
-      : latest.action === 'final' ? 'The writer asked for the final versions: write the final pair now (action final, two full versions).'
-        : latest.action === 'skip' ? 'The writer chose to move on from the current stage.'
-          : latest.action === 'neither' ? `The writer said neither card fits.${latest.note ? ` Their words: "${latest.note}"` : ' They said nothing.'}`
-            : `The writer picked card ${latest.side}.${latest.note ? ` Their words: "${latest.note}"` : ' They said nothing.'}`;
+    const last = p.comparisons.at(-1);
+    const chosen = last?.cards.find((c) => c.id === latest.cardId);
     const content = [
       taskText(task),
-      `Plan:\n${JSON.stringify({ strategy: plan.strategy, preferences: plan.preferences, decisions: plan.decisions })}`,
-      `Stages now:\n${JSON.stringify((p.stages ?? []).map(({ id, title, goal, decisions, pairs, status, clarity }) => ({ id, title, goal, decisions, pairsPlanned: pairs, status, clarity })))}`,
-      `What you know so far:\n${p.known ? JSON.stringify(p.known) : '(only the plan)'}`,
-      `History of comparisons:\n${history(p)}`,
-      `Latest action:\n${latestText}`,
-      `Budget: about ${b.secondsLeft} seconds left, room for about ${b.pairsLeft} more pairs.${b.pairsLeft <= 1 ? ' This must be the final pair (action final).' : ''}`,
+      `Brief so far:\n${(p.brief ?? []).map((x) => `- ${x}`).join('\n') || '(empty)'}`,
+      `Approach: ${p.approach ?? 'undecided'}. Settled: ${(p.settled ?? []).join('; ') || 'nothing yet'}. Open, general first: ${(p.open ?? []).join('; ') || 'nothing'}.`,
+      `Aspect of the last pair: ${last?.aspect ?? ''}`,
+      latest.action === 'neither'
+        ? `Neither version fit. Version A:\n${last.cards[0].text}\n\nVersion B:\n${last.cards[1].text}`
+        : `The version the writer chose ("${chosen?.lens}"):\n${chosen?.text ?? ''}`,
+      `What the writer said: ${latest.note ? `"${latest.note}"` : '(nothing)'}`,
+      `Pairs left: about ${b.pairsLeft}.${b.pairsLeft <= 1 ? ' Write the final pair now.' : ''}`,
     ].join('\n\n');
-    const out = await call('step', await scaffold.prompt('step'), content, STEP_SCHEMA);
+    await writePair(session, round, roundData, task, 'step', content, latest, b);
+  }
+  async function writePair(session, round, roundData, task, promptName, content, latest, b) {
+    const p = roundData.personal;
+    // One more try when the answer is unusable (rare with a small model).
+    const out = await call('step', promptName, content, STEP_SCHEMA, logger.forSession(session, round))
+      .catch(() => call('step', promptName, content, STEP_SCHEMA, logger.forSession(session, round)));
     const d = out.data;
     const cards = (d.cards ?? []).slice(0, 2);
-    if (cards.length < 2 || cards.some((c) => !clean(c.text))) throw new Error('The step did not return two cards');
+    if (cards.length < 2 || cards.some((c) => !clean(c.text))) throw new Error('The step did not return two versions');
     const n = p.comparisons.length + 1;
-    const action = latest.action === 'final' || b.pairsLeft <= 1 ? 'final' : d.action;
-    const stages = (d.stages ?? []).length ? d.stages : p.stages;
-    p.stages = stages.map((s) => ({ ...(p.stages ?? []).find((x) => x.id === s.id), ...s }));
-    p.known = d.known;
-    if (clean(d.message)) p.planMessage = clean(d.message);
+    Object.assign(p, { brief: (d.brief ?? []).map(clean).filter(Boolean), approach: clean(d.approach) || p.approach, settled: d.settled ?? [], open: d.open ?? [] });
+    if (!p.plan) p.plan = { approach: p.approach, open: p.open, brief: p.brief, createdAt: new Date().toISOString() };
     p.comparisons.push({
-      n, stageId: p.stages.find((s) => s.status === 'current')?.id ?? '', action, mode: d.mode, question: clean(d.question), message: clean(d.message),
-      understanding: Math.max(0, Math.min(1, Number(d.understanding) || 0)), reasoning: d.reasoning,
-      cards: cards.map((c, i) => ({
-        id: `c${n}${i ? 'b' : 'a'}`, lens: clean(c.lens), why: clean(c.why), kind: action === 'final' ? 'full' : c.kind, text: cleanResponse(clean(c.text)) || clean(c.text),
-        focus: (c.focus ?? []).map(clean).filter(Boolean).slice(0, 4), carried: (c.carried ?? []).map(clean).filter(Boolean).slice(0, 4),
-      })),
-      createdAt: new Date().toISOString(), budget: b,
+      n, aspect: clean(d.aspect), mode: d.mode, final: Boolean(d.final) || b.pairsLeft <= 1,
+      cards: cards.map((c, i) => ({ id: `c${n}${i ? 'b' : 'a'}`, lens: clean(c.lens), text: cleanResponse(clean(c.text)) || clean(c.text) })),
+      brief: p.brief, open: p.open, createdAt: new Date().toISOString(), budget: b,
     });
-    log.write('server.personal.step', { n, latest, latencyMs: out.latencyMs, model: out.model, usage: out.usage, budget: b, answer: d });
+    logger.forSession(session, round).write('server.personal.step', { n, prompt: promptName, latest, latencyMs: out.latencyMs, model: out.model, usage: out.usage, budget: b, answer: d });
   }
+
 
   // Profile: two passes. Evidence (observations grounded in quotes and measures), then the profile.
   function measures(p) {
@@ -245,11 +231,10 @@ export function personalRoutes(app) {
       comparisons: {
         shown: p.comparisons.length, answered: answered.length,
         neither: answered.filter((c) => c.response.action === 'neither').length,
-        skips: answered.filter((c) => c.response.action === 'skip').length,
         withoutWords: notes.filter((x) => x === 0).length,
         averageWords: notes.length ? Math.round(notes.reduce((a, x) => a + x, 0) / notes.length) : 0,
         medianDecisionSeconds: decisionSeconds.length ? Math.round(decisionSeconds.sort((a, x) => a - x)[Math.floor(decisionSeconds.length / 2)]) : null,
-        stagesPlanned: p.plan?.stages?.length ?? 0, stagesAtEnd: p.stages?.length ?? 0,
+        aspectsSettled: p.settled?.length ?? 0, aspectsOpen: p.open?.length ?? 0,
       },
       accepted: Boolean(p.accepted),
     };
@@ -261,18 +246,18 @@ export function personalRoutes(app) {
     const finalText = p.accepted?.text ?? p.comparisons.at(-1)?.cards?.find((c) => c.id === p.comparisons.at(-1)?.response?.cardId)?.text ?? '(no final text)';
     const evidenceIn = [
       `What the writer said while deliberating:\n${transcript(p)}`,
-      `The plan the system made from it:\n${JSON.stringify({ strategy: p.plan?.strategy, preferences: p.plan?.preferences, stages: p.plan?.stages?.map((s) => s.title) })}`,
+      `What the system took from it (approach, brief, aspects): ${JSON.stringify({ approach: p.plan?.approach, brief: p.brief, settled: p.settled, open: p.plan?.open })}`,
       `Comparisons:\n${history(p)}`,
       `Final text:\n${finalText}`,
       `Behaviour measures:\n${JSON.stringify(m)}`,
     ].join('\n\n');
-    const ev = await call('evidence', await scaffold.prompt('profile-evidence'), evidenceIn, EVIDENCE_SCHEMA);
+    const ev = await call('evidence', 'profile-evidence', evidenceIn, EVIDENCE_SCHEMA, log);
     const profileIn = [
       `Writing strategies (catalog):\n${await scaffold.strategies()}`,
       `Observations from this task:\n${JSON.stringify(ev.data.observations)}`,
-      `Profile from earlier tasks:\n${session.profile ? JSON.stringify(session.profile.result) : '(none: this is the first task)'}`,
+      `Parameters from earlier tasks:\n${session.profile ? JSON.stringify(session.profile.result) : '(none: this is the first task)'}`,
     ].join('\n\n');
-    const pr = await call('profile', await scaffold.prompt('profile'), profileIn, PROFILE_SCHEMA);
+    const pr = await call('profile', 'profile', profileIn, PROFILE_SCHEMA, log);
     p.profile = { evidence: ev.data.observations, result: pr.data, measures: m, createdAt: new Date().toISOString() };
     await store.update(session, (s) => { s.profile = { round, result: pr.data, createdAt: p.profile.createdAt }; });
     log.write('server.personal.profile', {
@@ -333,7 +318,7 @@ export function personalRoutes(app) {
       const elapsed = (Date.now() - Date.parse(p.deliberation.startedAt)) / 1000;
       const content = [taskText(task), `Deliberation so far:\n${transcript(p)}`, `Time left: about ${Math.max(0, Math.round(P.deliberation.seconds - elapsed))} seconds.`].join('\n\n');
       try {
-        const out = await call('adaptive', await scaffold.prompt('deliberation-adaptive'), content, ADAPTIVE_SCHEMA);
+        const out = await call('adaptive', 'deliberation-adaptive', content, ADAPTIVE_SCHEMA, log);
         question = clean(out.data.question);
         log.write('server.personal.adaptivePrompt', { question, focus: out.data.focus, latencyMs: out.latencyMs, model: out.model, usage: out.usage });
         if (question) p.deliberation.items.push({ kind: 'prompt', text: question, focus: clean(out.data.focus), at: new Date().toISOString() });
@@ -368,7 +353,7 @@ export function personalRoutes(app) {
       p.deliberation.finishReason = ['done', 'time', 'dev'].includes(req.body?.reason) ? req.body.reason : 'done';
       logger.forSession(session, round).write('server.personal.deliberationFinished', { reason: p.deliberation.finishReason, items: p.deliberation.items.length });
     }
-    if (!p.plan && !p.comparisons.length) startJob(session, key, roundData, 'plan', () => runPlan(session, round, key, roundData, task));
+    if (!p.plan && !p.comparisons.length) startJob(session, key, roundData, 'plan', () => runFirst(session, round, key, roundData, task));
     else await save(session, key, roundData);
     res.json(publicState(p));
   });
@@ -382,11 +367,11 @@ export function personalRoutes(app) {
     if (req.body?.retry && p.job?.error) {
       const kind = p.job.kind;
       p.job = null;
-      if (kind === 'plan') startJob(session, key, roundData, 'plan', () => runPlan(session, round, key, roundData, task));
+      if (kind === 'plan') startJob(session, key, roundData, 'plan', () => runFirst(session, round, key, roundData, task));
       else if (kind === 'step') startJob(session, key, roundData, 'step', () => runStep(session, round, key, roundData, task, p.retryLatest ?? { action: 'start' }));
       else if (kind === 'profile') startJob(session, key, roundData, 'profile', () => runProfile(session, round, key, roundData));
     } else if (p.deliberation?.finishedAt && !p.plan && !running(p.job) && !p.job?.error) {
-      startJob(session, key, roundData, 'plan', () => runPlan(session, round, key, roundData, task));
+      startJob(session, key, roundData, 'plan', () => runFirst(session, round, key, roundData, task));
     }
     // The first time a pair is seen counts for the decision time.
     const current = p.comparisons.at(-1);
@@ -402,13 +387,13 @@ export function personalRoutes(app) {
     if (!current || current.response || p.accepted) return res.status(409).json({ error: 'no_pair' });
     if (running(p.job)) return res.status(409).json({ error: 'busy' });
     const action = req.body?.action;
-    if (!['pick', 'neither', 'skip', 'final'].includes(action)) return res.status(400).json({ error: 'bad_action' });
+    if (!['pick', 'neither'].includes(action)) return res.status(400).json({ error: 'bad_action' });
     const note = clean(req.body?.note).slice(0, MAX_CHARS);
     const cardId = action === 'pick' ? req.body?.cardId : null;
     const side = current.cards[0].id === cardId ? 'A' : current.cards[1].id === cardId ? 'B' : null;
     if (action === 'pick' && !side) return res.status(400).json({ error: 'bad_card' });
     current.response = { action, cardId, note, at: new Date().toISOString() };
-    const latest = { action, side, note };
+    const latest = { action, side, cardId, note };
     p.retryLatest = latest;
     logger.forSession(session, round).write('server.personal.response', { n: current.n, action, cardId, side, note, words: words(note) });
     startJob(session, key, roundData, 'step', () => runStep(session, round, key, roundData, task, latest));
@@ -430,7 +415,7 @@ export function personalRoutes(app) {
     const { session, round, key, roundData, p } = x;
     const current = p.comparisons.at(-1);
     const card = current?.cards.find((c) => c.id === req.body?.cardId);
-    if (!card || card.kind !== 'full') return res.status(400).json({ error: 'bad_card' });
+    if (!card) return res.status(400).json({ error: 'bad_card' });
     if (!current.response) current.response = { action: 'pick', cardId: card.id, note: clean(req.body?.note), at: new Date().toISOString(), accepted: true };
     p.accepted = { cardId: card.id, text: card.text, at: new Date().toISOString() };
     logger.forSession(session, round).write('server.personal.accepted', { n: current.n, cardId: card.id, text: card.text, comparisons: p.comparisons.length });
@@ -471,13 +456,13 @@ export function exportSession(session) {
   const rounds = Object.entries(session.rounds ?? {}).filter(([, rd]) => rd.personal).map(([k, rd]) => {
     const p = rd.personal;
     const comparisons = p.comparisons.map((c) => ({
-      n: c.n, mode: c.mode, action: c.action, question: c.question, message: c.message, understanding: c.understanding, reasoning: c.reasoning,
-      cards: c.cards.map((x, i) => ({ letter: i ? 'B' : 'A', lens: x.lens, why: x.why, kind: x.kind, text: x.text })),
+      n: c.n, aspect: c.aspect, mode: c.mode, final: c.final, brief: c.brief, open: c.open,
+      cards: c.cards.map((x, i) => ({ letter: i ? 'B' : 'A', lens: x.lens, text: x.text })),
       response: c.response ? { action: c.response.action, card: letter(c, c.response.cardId), note: c.response.note ?? '', at: c.response.at } : null,
     }));
     return {
-      round: Number(k), taskId: rd.taskId, condition: p.condition, deliberation: p.deliberation, plan: p.plan ?? null, stages: p.stages ?? [],
-      known: p.known ?? null, comparisons, accepted: p.accepted ?? null, profile: p.profile ?? null,
+      round: Number(k), taskId: rd.taskId, condition: p.condition, deliberation: p.deliberation, plan: p.plan ?? null,
+      brief: p.brief ?? [], approach: p.approach ?? null, settled: p.settled ?? [], open: p.open ?? [], comparisons, accepted: p.accepted ?? null, profile: p.profile ?? null,
     };
   });
   return {
@@ -501,8 +486,9 @@ export function inspectRound(roundData) {
   const p = roundData?.personal;
   if (!p) return null;
   return {
-    condition: p.condition, job: p.job ?? null, deliberation: p.deliberation, plan: p.plan ?? null, stages: p.stages ?? [], known: p.known ?? null,
-    comparisons: p.comparisons.map(({ n, mode, action, question, understanding, reasoning, cards, response }) => ({ n, mode, action, question, understanding, reasoning, lenses: cards.map((c) => c.lens), response })),
+    condition: p.condition, job: p.job ?? null, deliberation: p.deliberation, plan: p.plan ?? null,
+    brief: p.brief ?? [], approach: p.approach ?? null, settled: p.settled ?? [], open: p.open ?? [],
+    comparisons: p.comparisons.map(({ n, aspect, mode, final, cards, response }) => ({ n, aspect, mode, final, lenses: cards.map((c) => c.lens), response })),
     accepted: p.accepted ?? null, profile: p.profile ?? null,
   };
 }
